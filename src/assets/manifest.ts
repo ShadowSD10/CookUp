@@ -38,6 +38,8 @@ function characterClips(
 const environmentRoot = 'assets/Spirits/Environment/Empty Kitchen';
 const environmentPath = (path: string): string =>
   `${environmentRoot}/${path}.png`;
+const structuralRoot =
+  'assets/Spirits/Environment/Kitchen Structural Wall Kit v2';
 
 export const environment = {
   floor: environmentPath('Floor/cookup-floor-128'),
@@ -45,12 +47,8 @@ export const environment = {
   floorSpeckle: environmentPath(
     'Floor/Variations/cookup-floor-fine-speckle-128',
   ),
-  wallHorizontal: environmentPath('Walls/cookup-wall-horizontal-128'),
-  wallVertical: environmentPath('Walls/cookup-wall-vertical-128'),
-  topLeft: environmentPath('Walls/cookup-wall-corner-top-left-128'),
-  topRight: environmentPath('Walls/cookup-wall-corner-top-right-128'),
-  bottomLeft: environmentPath('Walls/cookup-wall-corner-bottom-left-128'),
-  bottomRight: environmentPath('Walls/cookup-wall-corner-bottom-right-128'),
+  wallHorizontal: `${structuralRoot}/cookup-structural-wall-horizontal-v2-256.png`,
+  wallVertical: `${structuralRoot}/cookup-structural-wall-vertical-v2-256.png`,
   window: environmentPath('Windows/cookup-window-wall-horizontal-128'),
   door: environmentPath('Openings/Door/cookup-door-closed-horizontal-128'),
   doorFrame: environmentPath('Openings/Door/cookup-door-frame-horizontal-128'),

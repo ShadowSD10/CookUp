@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import type { GameState } from '../src/game/state';
+import { fitCamera } from '../src/rendering/camera';
 
 declare global {
   interface Window {
@@ -209,4 +210,102 @@ test('the production build works mounted under a GitHub Pages project path', asy
   await expect(page.locator('#p2-state')).toHaveText('walk');
   await page.keyboard.up('ArrowRight');
   expect(unexpectedPaths).toEqual([]);
+});
+
+test('loads both new wall images and paints all four structural borders', async ({
+  page,
+}) => {
+  const wallRequests: string[] = [];
+  page.on('response', (response) => {
+    if (
+      response.url().includes('cookup-structural-wall-') &&
+      response.status() === 200
+    ) {
+      wallRequests.push(response.url());
+    }
+  });
+  await openKitchen(page);
+  expect(
+    wallRequests.some((url) => url.includes('horizontal-v2-256.png')),
+  ).toBe(true);
+  expect(wallRequests.some((url) => url.includes('vertical-v2-256.png'))).toBe(
+    true,
+  );
+  const { world } = await snapshot(page);
+  for (const viewport of [
+    { width: 1280, height: 900 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const canvas = page.locator('canvas');
+    await expect
+      .poll(() =>
+        canvas.evaluate(
+          (el: HTMLCanvasElement) =>
+            el.width === Math.round(el.clientWidth * devicePixelRatio),
+        ),
+      )
+      .toBe(true);
+    const size = await canvas.evaluate((el: HTMLCanvasElement) => ({
+      width: el.clientWidth,
+      height: el.clientHeight,
+    }));
+    const camera = fitCamera(
+      size.width,
+      size.height,
+      world.width,
+      world.height,
+      world.visualBounds,
+    );
+    const points = [
+      { x: 384, y: -10 },
+      { x: 384, y: 920 },
+      { x: 0, y: 384 },
+      { x: 1280, y: 384 },
+      { x: -40, y: -10 },
+      { x: 1320, y: -10 },
+      { x: -40, y: 920 },
+      { x: 1320, y: 920 },
+    ].map(({ x, y }) => ({
+      x: camera.x + x * camera.scale,
+      y: camera.y + y * camera.scale,
+    }));
+    for (const point of points) {
+      expect(point.x).toBeGreaterThan(0);
+      expect(point.y).toBeGreaterThan(0);
+      expect(point.x).toBeLessThan(size.width);
+      expect(point.y).toBeLessThan(size.height);
+    }
+    const pixels = await canvas.evaluate((el: HTMLCanvasElement, samples) => {
+      const ctx = el.getContext('2d');
+      if (!ctx) throw new Error('Canvas context missing');
+      return samples.map(({ x, y }) =>
+        Array.from(
+          ctx.getImageData(
+            Math.floor(x * devicePixelRatio),
+            Math.floor(y * devicePixelRatio),
+            1,
+            1,
+          ).data,
+        ),
+      );
+    }, points);
+    for (const pixel of pixels) {
+      expect(pixel[3]).toBe(255);
+      expect(pixel.slice(0, 3)).not.toEqual([25, 46, 48]);
+    }
+  }
+});
+
+test('a missing structural wall reports the actual asset failure', async ({
+  page,
+}) => {
+  await page.route('**/cookup-structural-wall-vertical-v2-256.png', (route) =>
+    route.abort(),
+  );
+  await page.goto('/');
+  await expect(page.locator('#error')).toContainText(
+    'cookup-structural-wall-vertical-v2-256.png',
+  );
+  await expect(page.locator('canvas')).toHaveAttribute('data-status', 'error');
 });

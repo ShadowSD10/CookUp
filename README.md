@@ -26,6 +26,28 @@ cancel; diagonal movement has the same speed as axial movement. Keyboard
 rollover varies by hardware and can limit simultaneous physical key presses.
 Touch controls are not part of this milestone.
 
+## Viewport and fullscreen
+
+The game shell fills the browser viewport, with compact controls leaving most
+of the height for gameplay. The canvas display size follows its container;
+its backing resolution follows the device pixel ratio. The shared camera
+uniformly fits the complete room, including exterior walls and player-label
+headroom, without changing the world/grid or stretching artwork.
+
+Use **Fullscreen** in the kitchen toolbar to enter browser fullscreen. The same
+control becomes **Exit fullscreen**; the browser's Escape action also exits.
+The toolbar stays available in fullscreen, and returning to normal view preserves
+the game. Browser resize and fullscreen changes update the canvas and camera.
+Unsupported or denied fullscreen requests show an explanation; windowed play
+remains available.
+
+Image smoothing is disabled, nearest-neighbor CSS scaling is requested, and
+camera translation is aligned to device pixels. The fit uses a uniform fractional
+scale when integer scaling would crop the room or leave it unnecessarily small.
+Some letterboxing is intentional when the viewport and room have different aspect
+ratios. Short windows hide the nonessential header and player-control cards to
+prioritize the canvas; the fullscreen/restart toolbar remains available.
+
 ## Architecture
 
 - `src/core`: configuration and delta-time `requestAnimationFrame` loop.
@@ -38,10 +60,22 @@ Touch controls are not part of this milestone.
   chefs/decorations. Gameplay never draws to Canvas.
 - `tests`: Playwright browser checks against the production build.
 
-The room is composed of individual floor, wall, corner, window, door, mat,
+The room is composed of individual floor, structural wall, window, door, mat,
 clock, and plant images. Walls and plant bases block movement. The door is
 closed; there is no exit interaction. Chefs can pass through each other.
 Both players stay visible using a camera that fits the whole room.
+
+Structural walls use the two supplied 256 × 256 images at native world size,
+not scaled down to a tile. Their two-cell footprints, rendering offsets, and
+clipping rectangles are separate from the unchanged room collision bounds.
+Floor placement remains a 10 × 7 layout on the 128-unit grid. Wall visuals extend
+outside that layout; the shared camera includes their explicit visual bounds.
+
+The structural kit currently contains only horizontal and vertical pieces.
+Corners use simple overlapping-free butt joins, and end modules are clipped
+without stretching. Existing 128px door/window details and the clock remain
+as overlays at their native size. Matching structural corners, caps, doorway,
+and window assets are still needed for a fully consistent architectural style.
 
 Animation definitions support source dimensions, frame count (via the frame
 array), speed, looping, and current frame. Both chefs use the existing eight-frame

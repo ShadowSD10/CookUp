@@ -23,14 +23,34 @@
           Local co-op <span class="divider">/</span> Milestone 0
         </div>
       </header>
-      <section class="kitchen-panel" aria-labelledby="kitchen-title">
+      <section
+        id="game-shell"
+        class="kitchen-panel"
+        aria-labelledby="kitchen-title"
+      >
         <div class="kitchen-toolbar">
           <div>
             <span class="eyebrow">The first shift</span>
             <h2 id="kitchen-title">An empty kitchen. A fresh start.</h2>
           </div>
-          <button id="restart" type="button" disabled>Restart kitchen</button>
+          <div class="toolbar-actions">
+            <button id="restart" type="button" disabled>Restart kitchen</button>
+            <button
+              id="fullscreen"
+              type="button"
+              aria-pressed="false"
+              aria-controls="game-shell"
+            >
+              Fullscreen
+            </button>
+          </div>
         </div>
+        <p
+          id="viewport-message"
+          class="viewport-message"
+          role="alert"
+          hidden
+        ></p>
         <div class="canvas-wrap">
           <canvas
             id="kitchen"

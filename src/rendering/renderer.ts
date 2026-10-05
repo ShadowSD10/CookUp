@@ -39,13 +39,18 @@ export class Renderer {
       height,
       state.world.width,
       state.world.height,
+      state.world.visualBounds,
     );
-    ctx.translate(camera.x, camera.y);
+    ctx.translate(
+      Math.round(camera.x * ratio) / ratio,
+      Math.round(camera.y * ratio) / ratio,
+    );
     ctx.scale(camera.scale, camera.scale);
     ctx.imageSmoothingEnabled = false;
     ctx.save();
     ctx.beginPath();
-    ctx.rect(64, 64, state.world.width - 128, state.world.height - 128);
+    const floor = state.world.floorBounds;
+    ctx.rect(floor.x, floor.y, floor.width, floor.height);
     ctx.clip();
     for (const sprite of state.world.floors) this.drawSprite(sprite);
     ctx.restore();
@@ -66,6 +71,17 @@ export class Renderer {
   }
 
   private drawSprite(sprite: WorldSprite): void {
+    if (sprite.clip) {
+      this.context.save();
+      this.context.beginPath();
+      this.context.rect(
+        sprite.clip.x,
+        sprite.clip.y,
+        sprite.clip.width,
+        sprite.clip.height,
+      );
+      this.context.clip();
+    }
     this.context.drawImage(
       this.assets.get(sprite.asset),
       sprite.x,
@@ -73,6 +89,7 @@ export class Renderer {
       sprite.width,
       sprite.height,
     );
+    if (sprite.clip) this.context.restore();
   }
 
   private drawPlayer(player: Player): void {

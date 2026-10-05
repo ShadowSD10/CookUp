@@ -1,6 +1,7 @@
 import './style.css';
 import { Assets } from './assets/loader';
 import { GameLoop } from './core/loop';
+import { setupFullscreen } from './core/fullscreen';
 import { createGame, updateGame } from './game/state';
 import { Renderer } from './rendering/renderer';
 import { KeyboardInput } from './systems/input';
@@ -17,6 +18,11 @@ const restart = element('restart', HTMLButtonElement);
 const loading = element('loading', HTMLDivElement);
 const paused = element('paused', HTMLDivElement);
 const errorNotice = element('error', HTMLDivElement);
+const disposeFullscreen = setupFullscreen(
+  element('game-shell', HTMLElement),
+  element('fullscreen', HTMLButtonElement),
+  element('viewport-message', HTMLParagraphElement),
+);
 const playerLabels = [
   element('p1-state', HTMLSpanElement),
   element('p2-state', HTMLSpanElement),
@@ -76,7 +82,17 @@ async function start(): Promise<void> {
   };
   const resize = new ResizeObserver(render);
   resize.observe(canvas);
+  const fullscreenChanged = (): void => {
+    input.clear();
+    render();
+    if (document.hasFocus()) {
+      canvas.focus({ preventScroll: true });
+      resume();
+    }
+  };
   restart.addEventListener('click', reset);
+  window.addEventListener('resize', render);
+  document.addEventListener('fullscreenchange', fullscreenChanged);
   window.addEventListener('blur', pause);
   window.addEventListener('focus', resume);
   document.addEventListener('visibilitychange', visibility);
@@ -84,6 +100,8 @@ async function start(): Promise<void> {
     loop.stop();
     input.dispose();
     resize.disconnect();
+    window.removeEventListener('resize', render);
+    document.removeEventListener('fullscreenchange', fullscreenChanged);
     restart.removeEventListener('click', reset);
     window.removeEventListener('blur', pause);
     window.removeEventListener('focus', resume);
@@ -106,6 +124,7 @@ async function start(): Promise<void> {
 
 import.meta.hot?.dispose(() => {
   dispose?.();
+  disposeFullscreen();
   Reflect.deleteProperty(window, '__cookup');
 });
 

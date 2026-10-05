@@ -1,5 +1,259 @@
 # CookUp — Session Report
 
+## October 5, 2026, 17:17 IST — Viewport presentation and fullscreen
+
+**Outcome:** The kitchen now occupies substantially more screen space in normal
+windows, with a working browser Fullscreen API control and responsive,
+proportion-preserving rendering.
+
+### Changes
+
+- Replaced the centered, 1200px-wide page and capped canvas height with a
+  viewport-filling grid layout. The header, toolbar, and player cards are compact;
+  redundant captions/footer are hidden. Windows at or below 600px high hide the
+  header and control cards to prioritize gameplay, while keeping the toolbar.
+- Canvas CSS dimensions follow the available layout space. Canvas backing
+  resolution still follows CSS size multiplied by device pixel ratio.
+- Reduced the camera's fit margin from 6% to 2% overall, retaining the complete
+  visual bounds and north-label headroom. Both axes use one uniform scale.
+- Aligned camera translation to device pixels, retained disabled Canvas image
+  smoothing, and requested `image-rendering: pixelated` in CSS.
+- Added a native button to enter/exit fullscreen on the game shell. The toolbar
+  remains available without covering the gameplay canvas. The button label and
+  `aria-pressed` follow `document.fullscreenElement` and `fullscreenchange`.
+- Added [src/core/fullscreen.ts](../src/core/fullscreen.ts) for capability
+  detection, pending-request handling, state synchronization, listener cleanup,
+  and explicit failure messages. Unsupported browsers show an explanation;
+  rejected requests log the error and display it without stopping normal play.
+- Fullscreen UI remains independent of game-error cleanup, so an exit control is
+  not disabled by a gameplay failure.
+- Added window-resize and fullscreen-change handling alongside the existing
+  ResizeObserver. Fullscreen transitions clear held input, redraw the canvas,
+  and restore game focus when appropriate without resetting player/world state.
+- Updated [README.md](../README.md) with viewport/fullscreen behavior and
+  pixel-art scaling decisions.
+
+No world dimensions, 128-unit grid, collision geometry, movement speeds, source
+artwork, character scale, or gameplay mechanics were changed. Existing wall-kit
+integration work was preserved. The separately added, untracked
+`Kitchen Structural Wall Kit Final` folder was not modified or integrated.
+
+### Measured improvement
+
+Measurements below are CSS/display pixels, not changes to world units:
+
+| Browser viewport       | New canvas display size | New complete-room display size | Improvement over previous room scale                     |
+| ---------------------- | ----------------------- | ------------------------------ | -------------------------------------------------------- |
+| 1280 × 720, windowed   | 1262 × 564              | approximately 705 × 553        | approximately 34% larger in each dimension               |
+| 1920 × 1080, windowed  | 1902 × 924              | approximately 1156 × 906       | approximately 46% larger in each dimension               |
+| 1280 × 720, fullscreen | 1280 × 676              | approximately 845 × 662        | approximately 60% larger than the previous windowed room |
+
+Playwright asserts at least a 30% increase in room scale at both desktop sizes,
+not just a larger canvas element. It also requires at least 77% of desktop
+viewport height for the canvas and at least 80% in the tested short windows.
+An initial run missed the desktop height target by a few pixels; compacted the
+player-card spacing rather than weakening the threshold.
+
+### Verification results
+
+| Check            | Result                                                            |
+| ---------------- | ----------------------------------------------------------------- |
+| Unit tests       | Passed: 40 tests across 4 files                                   |
+| Browser tests    | Passed: 15 Chromium tests, including actual fullscreen entry/exit |
+| Typecheck        | Passed                                                            |
+| Lint             | Passed                                                            |
+| Formatting       | Passed                                                            |
+| Production build | Passed                                                            |
+
+Added [tests/viewport.spec.ts](../tests/viewport.spec.ts) covering:
+
+- Measurable room enlargement at 1280 × 720 and 1920 × 1080.
+- Centered framing, all exterior walls, and visible player labels.
+- Equal X/Y scaling, disabled smoothing, high-DPI resolution, and no page overflow.
+- Portrait, short landscape, and small native-window-sized viewports.
+- Actual Fullscreen API entry, exit, repeat entry, external API exit, state
+  synchronization, and simultaneous player movement.
+- Preserved player positions and world state across fullscreen and resizing.
+- Denied fullscreen requests, retry availability, and unsupported environments.
+
+### Actual manual browser inspection
+
+Launched the local production preview and inspected rendered screenshots at
+1280 × 720, 1920 × 1080, 390 × 844, and after resizing fullscreen to 1024 × 768.
+Checked the complete room, sprite proportions, pixel-art edges, north-wall labels,
+and continued availability of the fullscreen button.
+
+Entered and exited fullscreen repeatedly through the actual control, including
+from a short 640 × 360 window. Moved both chefs simultaneously to the north
+boundary in fullscreen and verified their labels remained visible.
+
+Also opened a separate browser context with **no emulated viewport**, maximized
+its native browser window, and inspected its screenshot. The browser reported
+`windowState: maximized` on the test display (800 × 600 outer window,
+782 × 495 page viewport). The canvas occupied 764 × 433 CSS pixels; entering and
+exiting fullscreen returned to the maximized state successfully.
+
+The inspected gameplay page reported no browser console errors. Temporary native
+inspection contexts were closed after use.
+
+### Limits and deliberate choices
+
+- A rectangular viewport and this room have different aspect ratios, so some
+  letterboxing is necessary to preserve the full room without stretching.
+  Narrow portrait views are width-limited.
+- Uniform fractional nearest-neighbor scaling is used when integer scaling would
+  crop the room or make it unnecessarily small. This preserves proportions
+  without smoothing, but fractional pixel steps are not an integer-pixel-perfect
+  zoom mode.
+- Browser support and embedding permissions determine Fullscreen API availability.
+  No fake-fullscreen success fallback is used.
+- The automation browser did not exit fullscreen on a synthetic Escape key.
+  Button-based entry/exit and external `document.exitFullscreen()` were verified;
+  handling of a physical Escape key remains the browser/platform's responsibility.
+- Validation covered Chromium and the available test display, not every browser,
+  operating system, or physical monitor configuration.
+
+---
+
+## October 5, 2026, 16:51 IST — Structural wall kit integration
+
+**Milestone:** Milestone 0 — Playable Empty Kitchen  
+**Outcome:** Integrated the new structural wall artwork into the working modular
+kitchen, preserving the grid, player rendering, movement, and collision behavior.
+
+### Asset inspection and agreed scope
+
+Inspected the repository, original wall assembly, manifest, renderer, camera, and
+tests before editing. The working tree was clean.
+
+The new `public/assets/Spirits/Environment/Kitchen Structural Wall Kit v2/`
+directory contains exactly two PNGs:
+
+| Asset                                          | Verified source dimensions | Nontransparent pixel bounds, inclusive |
+| ---------------------------------------------- | -------------------------- | -------------------------------------- |
+| `cookup-structural-wall-horizontal-v2-256.png` | 256 × 256                  | x=0..255, y=32..232                    |
+| `cookup-structural-wall-vertical-v2-256.png`   | 256 × 256                  | x=48..212, y=0..255                    |
+
+There are no structural corner, doorway, window, or cap files in the supplied
+kit. Asked how to proceed; the user selected integration of the available pieces
+with compatible existing details and documented visual limitations.
+
+No artwork was renamed, edited, generated, or rescaled to the old 128px tile
+dimensions. Existing character artwork and character rendering remain unchanged.
+
+### Implementation
+
+- Updated [src/assets/manifest.ts](../src/assets/manifest.ts) to register the two
+  actual structural wall paths. Stopped registering the superseded thin wall and
+  legacy corner images; the original files remain untouched.
+- Preserved the existing image loader, encoded URL handling, deployment-base
+  support, and visible asset-error reporting.
+- Updated [src/game/world.ts](../src/game/world.ts):
+  - Preserved the 128-unit grid and 10 × 7 floor layout (1280 × 896 world units).
+  - Added explicit sprite footprints independently from visual position and size.
+  - Horizontal wall modules have 256 × 128 logical footprints; vertical modules
+    have 128 × 256 footprints. Footprints remain aligned to the existing grid.
+  - Draws all structural images at 256 × 256 world units, with offsets accounting
+    for their measured transparent margins.
+  - Uses six horizontal modules on each of the north/south borders and four
+    vertical modules on each side.
+  - Clips partial end modules at explicit wall-band boundaries instead of
+    stretching or editing the images.
+  - Joins north/south runs to the side walls without overlap or floor gaps.
+  - Retains the original 128px windows, closed door, door frame, and clock as
+    repositioned overlays. The floor mat and two plants remain unchanged.
+  - Defines floor drawing bounds explicitly at the room's interior rectangle so
+    floors meet the structural walls.
+- Updated [src/rendering/renderer.ts](../src/rendering/renderer.ts) to respect
+  per-sprite clipping and explicit floor bounds, while preserving background,
+  depth-sorted entities, and south-wall foreground rendering.
+
+### Collision and camera
+
+**Collision:** No changes to the collision system or room collision geometry.
+The playable rectangle remains x=84, y=84, width=1112, height=728. Plant colliders,
+player collision sizes, diagonal normalization, and movement speeds (walk 270,
+run 450) are unchanged. Wall footprints and visual dimensions do not create
+additional obstacles.
+
+**Camera:** Extended [src/rendering/camera.ts](../src/rendering/camera.ts) to
+include optional world visual bounds in the existing fit calculation. It retains
+the previous north-label headroom and viewport margin. Structural visual bounds
+are x=-81, y=-117, width=1442, height=1130; these frame artwork extending outside
+the original floor grid without changing world coordinates. The entire scene
+shares the same camera scale; character render scale remains unchanged.
+
+### Automated verification
+
+| Check                  | Result                                       |
+| ---------------------- | -------------------------------------------- |
+| `npm run test`         | Passed: 40 unit tests across 4 files         |
+| `npm run test:e2e`     | Passed: 10 Chromium browser tests            |
+| `npm run typecheck`    | Passed                                       |
+| `npm run lint`         | Passed                                       |
+| `npm run format:check` | Passed                                       |
+| `npm run build`        | Passed: TypeScript and Vite production build |
+
+The editor-integrated test tool did not discover the tests, so the existing
+Vitest npm command was used successfully.
+
+Strengthened the manifest tests to check the exact new paths and verify the
+structural PNGs at 256 × 256 while retaining 128 × 128 checks for legacy
+environment assets.
+
+Added [src/game/world.test.ts](../src/game/world.test.ts) to check native visual
+sizes, independent grid footprints, unchanged room geometry, floor alignment,
+continuous border coverage and corner joins, legacy details, foreground layering,
+and complete wall/label framing across viewport proportions.
+
+Extended [tests/kitchen.spec.ts](../tests/kitchen.spec.ts) to verify successful
+loading of both structural assets and actual painted pixels on all four borders
+and corner joins at desktop and narrow sizes. A separate failure test verifies
+that a missing structural PNG reports its actual filename visibly.
+
+All existing movement, animation, collision, restart, focus, high-DPI resize,
+asset-failure, and project-subdirectory tests still pass without relaxing their
+expected behavior.
+
+### Actual local visual verification
+
+Launched the production preview on local port 4174 and opened it in the browser.
+Inspected screenshots of the rendered game, rather than relying only on the
+manifest or automated tests:
+
+- Desktop view: structural scale relative to both chefs, complete wall framing,
+  floor alignment, all four joins, and legacy door/window/clock details.
+- Both chefs against the north wall: labels and sprites remained visible at
+  y=96, with no camera clipping.
+- Diagonal movement into the north wall: both chefs continued moving sideways
+  along it, then stopped at x=101 and x=1179.
+- Running down the side boundaries: both chefs reached y=800 without sticking;
+  south-corner screenshots showed both characters still visible.
+- Narrow 390 × 844 viewport: complete room and both chefs remained visible.
+- Browser console: zero errors were reported during this inspection.
+
+The positions were observed through the existing read-only debug snapshot;
+movement was driven through keyboard events, not direct state mutation.
+
+### Remaining visual limitations
+
+- The kit is incomplete. Corners are simple butt joins, not dedicated matching
+  structural corner images; exposed module ends are clipped rather than capped.
+- Legacy door/window details are visibly smaller than the new structural panels.
+  They are retained at native size, not enlarged or replaced with invented art.
+- The door remains closed and decorative, with no traversal or interaction.
+- The full-room camera must include the larger exterior walls, so the interior
+  and chefs occupy less screen space at a fixed viewport. Their world dimensions
+  and configured render scale have not changed.
+- No furniture, appliances, cooking mechanics, interactions, scoring, or
+  player-player collision were added.
+
+Updated [README.md](../README.md) with the native-size wall placement approach
+and incomplete-kit limitations. This entry is prepended to preserve latest-first
+session history.
+
+---
+
 ## October 5, 2026, 16:01 IST — Movement speed adjustment
 
 **Milestone:** Milestone 0 — Playable Empty Kitchen  
