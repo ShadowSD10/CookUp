@@ -1,5 +1,220 @@
 # CookUp — Session Report
 
+## October 5, 2026, 17:38 IST — FINAL structural wall kit integration
+
+**Outcome:** Replaced the mixed v2/legacy perimeter with the finalized structural
+system in the running game. This corrective follow-up supersedes the earlier wall
+integration description; the older entries below remain as historical records.
+
+### Filesystem and asset inspection
+
+Inspected the actual directory, every PNG's dimensions and nontransparent bounds,
+the current manifest, room construction, renderer, and collision implementation
+before editing. The working tree was clean.
+
+The verified asset directory is:
+
+```text
+public/assets/Spirits/Environment/Kitchen Structural Wall Kit Final/
+```
+
+All 18 files were found and registered:
+
+| Actual filename, relative to the final-kit directory           | Verified PNG dimensions |
+| -------------------------------------------------------------- | ----------------------- |
+| `Walls/cookup-structural-wall-horizontal-256x128.png`          | 256 × 128               |
+| `Walls/cookup-structural-wall-vertical-128x256.png`            | 128 × 256               |
+| `Walls/cookup-structural-wall-horizontal-single-128x128.png`   | 128 × 128               |
+| `Walls/cookup-structural-wall-vertical-single-128x128.png`     | 128 × 128               |
+| `Corners/cookup-structural-corner-top-left-128x128.png`        | 128 × 128               |
+| `Corners/cookup-structural-corner-top-right-128x128.png`       | 128 × 128               |
+| `Corners/cookup-structural-corner-bottom-left-128x128.png`     | 128 × 128               |
+| `Corners/cookup-structural-corner-bottom-right-128x128.png`    | 128 × 128               |
+| `Caps/cookup-structural-cap-top-128x128.png`                   | 128 × 128               |
+| `Caps/cookup-structural-cap-right-128x128.png`                 | 128 × 128               |
+| `Caps/cookup-structural-cap-bottom-128x128.png`                | 128 × 128               |
+| `Caps/cookup-structural-cap-left-128x128.png`                  | 128 × 128               |
+| `Doorway/cookup-structural-doorway-frame-opening-256x128.png`  | 256 × 128               |
+| `Doorway/cookup-structural-door-closed-256x128.png`            | 256 × 128               |
+| `Doorway/cookup-structural-door-ajar-256x128.png`              | 256 × 128               |
+| `Doorway/cookup-structural-door-open-256x128.png`              | 256 × 128               |
+| `Windows/cookup-structural-window-wall-horizontal-256x128.png` | 256 × 128               |
+| `Windows/cookup-structural-window-wall-vertical-128x256.png`   | 128 × 256               |
+
+Inspected the directional corner artwork and its edge pixels to verify that the
+joins match neighboring native-sized pieces, without rotation or offsets.
+
+The previous active configuration was rendering the two 256 × 256 v2 wall images,
+the old window, the old closed door, and the old door frame. It used clipped butt
+joins rather than real corner pieces. All those structural references and the
+associated placement/clipping logic have now been removed from the active game.
+
+### Manifest and room construction
+
+- [src/assets/manifest.ts](../src/assets/manifest.ts) now contains a typed
+  `structuralWalls` registry with each final asset's path, width, and height.
+- The existing loader loads all 18 files and retains its normal visible-error
+  behavior and deployment-base handling.
+- No old `Empty Kitchen/Walls`, `Windows`, `Openings`, or `Transitions` images,
+  and no `Kitchen Structural Wall Kit v2` images, remain in the active registry.
+  Original files remain physically untouched in the repository.
+- Original floor and nonstructural decorations remain active: plants, floor mat,
+  and wall clock. These are not legacy structural overlays.
+
+The world remains **1280 × 896**, with **10 × 7 cells of 128 units**.
+[src/game/world.ts](../src/game/world.ts) constructs the complete perimeter from
+native-sized final pieces. Every structural top-left position is an exact grid
+multiple. There is no stretching, rotation, clipping, or negative wall placement.
+
+| Location        | Final-kit placement                                                                         |
+| --------------- | ------------------------------------------------------------------------------------------- |
+| North corners   | Top-left at cell (0,0), top-right at (9,0)                                                  |
+| North fillers   | Horizontal single-cell pieces at (1,0) and (6,0)                                            |
+| North windows   | Horizontal window-wall pieces at (2,0) and (7,0), each spanning two cells                   |
+| North doorway   | Frame and closed door share cell (4,0), world position (512,0), and a 256 × 128 visual size |
+| West/east sides | Vertical two-cell pieces at rows 1 and 3; single-cell fillers at row 5, in columns 0 and 9  |
+| South corners   | Bottom-left at (0,6), bottom-right at (9,6)                                                 |
+| South wall      | Horizontal two-cell pieces at columns 1, 3, 5, and 7 of row 6                               |
+
+Every perimeter cell is occupied exactly once by a structural base piece. The
+closed door is the intentional same-anchor layer inside its doorway frame;
+there is no hidden plain wall beneath the doorway or windows.
+
+The clock occupies the north filler at (6,0), clear of the two-cell doorway.
+The floor mat, plants, and player spawn positions are unchanged.
+
+### Corners, caps, door states, and windows
+
+All four matching corner images are drawn directly in their intended directions.
+There are no exposed ends in this closed rectangular room, so directional caps
+are registered and loaded but are not superimposed on corners or completed runs.
+Single-cell fillers eliminate partial/clipped modules.
+
+Closed, ajar, and open door PNGs are registered at their verified common dimensions.
+The prototype displays the closed state at the exact doorway-frame anchor; no
+door interaction or traversal was introduced.
+
+Both existing north windows now use final horizontal window-wall pieces, replacing
+their structural slots rather than overlaying old windows. The vertical
+window-wall is registered and loaded but not placed: the existing room has no
+side windows, and this task does not redesign the layout.
+
+### Rendering, floor alignment, and collision
+
+Removed the obsolete optional wall clipping rectangle from `WorldSprite` and its
+renderer branch. The renderer still draws floors, background structures,
+depth-sorted entities/decorations, and south-wall foreground pieces in the
+existing order.
+
+Floors retain their modular tile arrangement. Their separate drawing rectangle
+is x=64, y=64, width=1152, height=768, extending underneath the opaque wall bands
+so native corner transparency does not expose gaps in the interior.
+
+Collision remains a separate, explicit world-coordinate rectangle. The measured
+final artwork has horizontal wall ink at y=16..111 and vertical ink at x=40..95
+within the relevant cells. The playable inner faces therefore changed from:
+
+- Previous bounds: x=84..1196, y=84..812.
+- Final bounds: **x=96..1192, y=112..784**.
+- Final rectangle: **x=96, y=112, width=1096, height=672**.
+
+These are explicit layout coordinates, not values derived from PNG width/height
+at runtime. The collision algorithm, player body sizes, plant colliders, movement
+speeds, and diagonal normalization are unchanged. Players can occupy transparent
+padding inside a wall's grid cell without colliding with the entire sprite box.
+
+### Camera, canvas, and fullscreen
+
+The oversized v2 exterior visual bounds were removed. The final wall footprint
+fits inside the existing 1280 × 896 world rectangle.
+
+The camera implementation and 98% fit factor were not changed. It continues to
+fit the world plus its existing north-label headroom; the final wall proportions
+come from native artwork, not a new zoom setting. The narrower final vertical
+artwork no longer appears as the oversized v2 side bands.
+
+Responsive CSS, high-DPI backing resolution, nearest-neighbor rendering,
+fullscreen controls, focus behavior, and resize handling remain intact.
+
+### Automated verification
+
+| Requested command      | Result                               |
+| ---------------------- | ------------------------------------ |
+| `npm run typecheck`    | Passed                               |
+| `npm run lint`         | Passed                               |
+| `npm run format:check` | Passed                               |
+| `npm run test`         | Passed: 45 unit tests across 4 files |
+| `npm run build`        | Passed                               |
+| `npm run test:e2e`     | Passed: 15 Chromium browser tests    |
+
+Tests now verify:
+
+- All 18 final-kit files are registered, exist, and have the declared dimensions.
+- No obsolete structural image is registered, referenced by the active world,
+  or requested by the browser.
+- Native dimensions, grid anchors, the four correct directional corners,
+  shared doorway/door anchor, and final north window-wall slots.
+- Exact perimeter-cell coverage: no doubled structural bases, missing cells,
+  or unwanted interior walls.
+- Explicit inner-face collision and both players sliding along all four walls,
+  including the transparent portions of wall cells.
+- Final walls and north player labels remain within the camera viewport.
+- Actual rendered pixels match source pixels from the final wall, corner,
+  doorway, closed-door, and window PNGs at both desktop and narrow viewports.
+- A missing final structural image still reports its actual filename visibly.
+- Existing simultaneous movement, restart, resize, high-DPI, subdirectory-hosting,
+  and actual fullscreen entry/exit tests continue to pass.
+
+The viewport-centering assertion now includes the camera's existing 64-unit
+north headroom when checking the framed region. Full wall visibility, label
+visibility, uniform scaling, and room-size thresholds remain enforced.
+
+### Actual manual browser inspection
+
+Opened the production preview locally and inspected the running game, not just
+the files or manifest. Screenshots were inspected for:
+
+- **Top:** native final horizontal fillers, doorway, and integrated windows.
+- **Left/right:** final 128 × 256 runs with 128 × 128 fillers.
+- **Bottom:** final 256 × 128 runs in the foreground layer.
+- **Corners:** all four final directional pieces joining the adjacent walls.
+- **Door/window:** final-kit artwork only; no old structural overlay underneath.
+- **Floor:** aligned beneath the perimeter, with no observed gaps or doubled walls.
+- **Characters:** unchanged sprites, sensible proportions, and visible labels.
+
+Inspected 1280 × 720 windowed view, fullscreen with both chefs at the north wall,
+fullscreen resized to 1024 × 768 with chefs at the south corners, and a resized
+390 × 844 normal window. Entering and exiting fullscreen worked correctly.
+
+Used real keyboard events through the browser to move both players simultaneously:
+
+- North stopping position: y=124 for both player centers.
+- Diagonal input against the north face moved both players sideways normally.
+- West/east stopping positions: x=113 and x=1175.
+- South stopping position: y=772.
+- Players stopped at the boundaries without escaping or sticking.
+
+Also opened a separate context with no emulated viewport, maximized its native
+browser window, and inspected the resulting screenshot. The test display reported
+an 800 × 600 maximized outer window, a 782 × 495 page viewport, and a 764 × 433
+canvas. A fullscreen round trip returned to the maximized window successfully.
+
+The inspected gameplay page reported zero browser console errors. The final
+screenshots show one structural system rather than mixed old/new wall pieces.
+
+### Remaining scope
+
+Caps, the vertical window-wall, and alternate door states are available and loaded,
+but are not all displayed simultaneously in this unchanged closed-room layout.
+The door remains noninteractive. No furniture, cooking systems, new collisions,
+or new gameplay were added. Browser verification covered Chromium and the
+available test display, not every browser or physical monitor.
+
+Updated [README.md](../README.md) to describe the final kit and remove obsolete
+current-state descriptions of mixed assets, missing corners, and clipped modules.
+
+---
+
 ## October 5, 2026, 17:17 IST — Viewport presentation and fullscreen
 
 **Outcome:** The kitchen now occupies substantially more screen space in normal

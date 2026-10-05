@@ -63,8 +63,23 @@ async function expectFramed(page: Page) {
   expect(top).toBeGreaterThanOrEqual(0);
   expect(right).toBeLessThanOrEqual(view.width);
   expect(bottom).toBeLessThanOrEqual(view.height);
-  expect(Math.abs((left + right) / 2 - view.width / 2)).toBeLessThanOrEqual(1);
-  expect(Math.abs((top + bottom) / 2 - view.height / 2)).toBeLessThanOrEqual(1);
+  const framedLeft = x / view.ratio + Math.min(0, world.visualBounds.x) * scale;
+  const framedTop =
+    y / view.ratio + Math.min(-64, world.visualBounds.y) * scale;
+  const framedRight =
+    x / view.ratio +
+    Math.max(world.width, world.visualBounds.x + world.visualBounds.width) *
+      scale;
+  const framedBottom =
+    y / view.ratio +
+    Math.max(world.height, world.visualBounds.y + world.visualBounds.height) *
+      scale;
+  expect(
+    Math.abs((framedLeft + framedRight) / 2 - view.width / 2),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs((framedTop + framedBottom) / 2 - view.height / 2),
+  ).toBeLessThanOrEqual(1);
   for (const player of players) {
     const labelTop =
       y / view.ratio + (player.y - 256 * player.renderScale - 14) * scale;

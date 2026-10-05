@@ -71,17 +71,6 @@ export class Renderer {
   }
 
   private drawSprite(sprite: WorldSprite): void {
-    if (sprite.clip) {
-      this.context.save();
-      this.context.beginPath();
-      this.context.rect(
-        sprite.clip.x,
-        sprite.clip.y,
-        sprite.clip.width,
-        sprite.clip.height,
-      );
-      this.context.clip();
-    }
     this.context.drawImage(
       this.assets.get(sprite.asset),
       sprite.x,
@@ -89,7 +78,6 @@ export class Renderer {
       sprite.width,
       sprite.height,
     );
-    if (sprite.clip) this.context.restore();
   }
 
   private drawPlayer(player: Player): void {

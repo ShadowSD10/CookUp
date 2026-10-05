@@ -1,125 +1,190 @@
 import { describe, expect, it } from 'vitest';
-import { environment } from '../assets/manifest';
+import { environment, structuralWalls } from '../assets/manifest';
 import { PLAYER_CONFIG } from '../core/config';
 import { fitCamera } from '../rendering/camera';
-import type { Rect } from '../systems/collision';
-import { createWorld, TILE_SIZE, type WorldSprite } from './world';
+import { movePlayer } from '../systems/movement';
+import { createGame } from './state';
+import { createWorld, TILE_SIZE } from './world';
 
-function visibleWall(sprite: WorldSprite): Rect {
-  if (!sprite.clip)
-    throw new Error('A structural wall requires explicit clipping');
-  const horizontal = sprite.asset === environment.wallHorizontal;
-  const left = Math.max(sprite.x + (horizontal ? 0 : 48), sprite.clip.x);
-  const top = Math.max(sprite.y + (horizontal ? 32 : 0), sprite.clip.y);
-  const right = Math.min(
-    sprite.x + (horizontal ? 256 : 213),
-    sprite.clip.x + sprite.clip.width,
-  );
-  const bottom = Math.min(
-    sprite.y + (horizontal ? 233 : 256),
-    sprite.clip.y + sprite.clip.height,
-  );
-  return { x: left, y: top, width: right - left, height: bottom - top };
-}
-
-describe('structural wall layout', () => {
+describe('final structural wall layout', () => {
   const world = createWorld();
-  const walls = [...world.structures, ...world.foreground].filter(
-    (sprite) =>
-      sprite.asset === environment.wallHorizontal ||
-      sprite.asset === environment.wallVertical,
+  const registry = new Map(
+    Object.values(structuralWalls).map((asset) => [asset.path, asset]),
+  );
+  const walls = [...world.structures, ...world.foreground].filter((sprite) =>
+    registry.has(sprite.asset),
+  );
+  const perimeter = walls.filter(
+    (sprite) => sprite.asset !== structuralWalls.doorClosed.path,
   );
 
-  it('preserves the 10 by 7 grid, collision rectangle, and original objects', () => {
+  it('preserves the grid and decorations with explicit bounds matching the final inner faces', () => {
     expect(TILE_SIZE).toBe(128);
     expect([world.width, world.height]).toEqual([1280, 896]);
-    expect(world.bounds).toEqual({ x: 84, y: 84, width: 1112, height: 728 });
-    expect(world.floorBounds).toEqual(world.bounds);
+    expect(world.bounds).toEqual({ x: 96, y: 112, width: 1096, height: 672 });
+    expect(world.visualBounds).toEqual({
+      x: 0,
+      y: 0,
+      width: 1280,
+      height: 896,
+    });
+    expect(world.floorBounds).toEqual({
+      x: 64,
+      y: 64,
+      width: 1152,
+      height: 768,
+    });
     expect(
       world.floors.filter((sprite) => sprite.asset !== environment.mat),
     ).toHaveLength(70);
     expect(world.objects).toHaveLength(2);
   });
 
-  it('uses native 256px wall visuals with independent, grid-aligned footprints', () => {
+  it('uses only final structural assets with native dimensions and exact grid anchors', () => {
     expect(walls).toHaveLength(20);
     for (const wall of walls) {
-      expect([wall.width, wall.height]).toEqual([256, 256]);
-      expect(wall.footprint.x % TILE_SIZE).toBeCloseTo(0);
-      expect(wall.footprint.y % TILE_SIZE).toBeCloseTo(0);
-      expect([wall.footprint.width, wall.footprint.height]).toEqual(
-        wall.asset === environment.wallHorizontal ? [256, 128] : [128, 256],
+      const asset = registry.get(wall.asset);
+      if (!asset)
+        throw new Error(`Unregistered structural asset: ${wall.asset}`);
+      expect(wall.width).toBe(asset.width);
+      expect(wall.height).toBe(asset.height);
+      expect(wall.x % TILE_SIZE).toBe(0);
+      expect(wall.y % TILE_SIZE).toBe(0);
+      expect(wall.footprint).toEqual({
+        x: wall.x,
+        y: wall.y,
+        width: wall.width,
+        height: wall.height,
+      });
+      expect(wall).not.toHaveProperty('clip');
+      expect(wall).not.toHaveProperty('rotation');
+    }
+    for (const sprite of [...world.structures, ...world.foreground]) {
+      expect(
+        registry.has(sprite.asset) || sprite.asset === environment.clock,
+      ).toBe(true);
+    }
+    for (const sprite of [
+      ...world.floors,
+      ...world.structures,
+      ...world.foreground,
+      ...world.objects,
+    ]) {
+      expect(sprite.asset).not.toMatch(
+        /Wall Kit v2|Empty Kitchen\/(?:Walls|Windows|Openings|Transitions)\//,
       );
-      expect(wall.clip).toBeDefined();
     }
   });
 
-  it('fills the full border and all four corner joins without intruding into the floor', () => {
-    const ink = walls.map(visibleWall);
-    const floor = world.floorBounds;
-    for (const rect of ink) {
-      expect(rect.width).toBeGreaterThan(0);
-      expect(rect.height).toBeGreaterThan(0);
-      expect(
-        rect.x < floor.x + floor.width &&
-          rect.x + rect.width > floor.x &&
-          rect.y < floor.y + floor.height &&
-          rect.y + rect.height > floor.y,
-      ).toBe(false);
-    }
-    const visual = world.visualBounds;
-    for (let y = visual.y + 0.5; y < visual.y + visual.height; y += 1) {
-      const intervals = ink
-        .filter((rect) => y >= rect.y && y < rect.y + rect.height)
-        .sort((a, b) => a.x - b.x);
-      const bands =
-        y < floor.y || y >= floor.y + floor.height
-          ? [[visual.x, visual.x + visual.width]]
-          : [
-              [visual.x, floor.x],
-              [floor.x + floor.width, visual.x + visual.width],
-            ];
-      for (const [start, end] of bands) {
-        if (start === undefined || end === undefined)
-          throw new Error('Missing border interval');
-        let covered = start;
-        for (const rect of intervals) {
-          if (rect.x <= covered && rect.x + rect.width > covered)
-            covered = rect.x + rect.width;
-        }
-        expect(covered, `Uncovered wall at y=${y}`).toBeGreaterThanOrEqual(end);
+  it('covers each perimeter cell exactly once without overlaps, gaps, or interior structural tiles', () => {
+    for (let row = 0; row < 7; row++) {
+      for (let column = 0; column < 10; column++) {
+        const x = column * TILE_SIZE;
+        const y = row * TILE_SIZE;
+        const covering = perimeter.filter(
+          (sprite) =>
+            x >= sprite.x &&
+            x < sprite.x + sprite.width &&
+            y >= sprite.y &&
+            y < sprite.y + sprite.height,
+        );
+        const border = row === 0 || row === 6 || column === 0 || column === 9;
+        expect(covering, `Cell ${column},${row}`).toHaveLength(border ? 1 : 0);
       }
     }
+    const caps = [
+      structuralWalls.capTop,
+      structuralWalls.capRight,
+      structuralWalls.capBottom,
+      structuralWalls.capLeft,
+    ];
+    expect(
+      walls.some((wall) => caps.some((cap) => cap.path === wall.asset)),
+    ).toBe(false);
   });
 
-  it('retains native legacy door and window details and separate south-wall layering', () => {
-    for (const asset of [
-      environment.window,
-      environment.door,
-      environment.doorFrame,
-      environment.clock,
-    ]) {
-      const details = world.structures.filter(
-        (sprite) => sprite.asset === asset,
-      );
-      expect(details.length).toBeGreaterThan(0);
-      for (const detail of details)
-        expect([detail.width, detail.height]).toEqual([128, 128]);
+  it('uses each directional corner in its intended location and keeps the south wall in front', () => {
+    for (const [asset, x, y] of [
+      [structuralWalls.topLeft.path, 0, 0],
+      [structuralWalls.topRight.path, 1152, 0],
+      [structuralWalls.bottomLeft.path, 0, 768],
+      [structuralWalls.bottomRight.path, 1152, 768],
+    ] as const) {
+      expect(walls.filter((wall) => wall.asset === asset)).toEqual([
+        expect.objectContaining({ asset, x, y, width: 128, height: 128 }),
+      ]);
     }
     expect(world.foreground).toHaveLength(6);
-    expect(
-      world.foreground.every(
-        (sprite) => sprite.asset === environment.wallHorizontal,
-      ),
-    ).toBe(true);
+    expect(world.foreground.every((wall) => wall.y === 768)).toBe(true);
   });
+
+  it('replaces wall slots with final windows and shares a doorway/closed-door anchor', () => {
+    const doorway = walls.find(
+      (wall) => wall.asset === structuralWalls.doorway.path,
+    );
+    const door = walls.find(
+      (wall) => wall.asset === structuralWalls.doorClosed.path,
+    );
+    expect(doorway).toMatchObject({ x: 512, y: 0, width: 256, height: 128 });
+    expect(door).toEqual({
+      ...doorway,
+      asset: structuralWalls.doorClosed.path,
+    });
+    expect(
+      walls
+        .filter((wall) => wall.asset === structuralWalls.windowHorizontal.path)
+        .map(({ x, y, width, height }) => ({ x, y, width, height })),
+    ).toEqual([
+      { x: 256, y: 0, width: 256, height: 128 },
+      { x: 896, y: 0, width: 256, height: 128 },
+    ]);
+    for (const state of [
+      structuralWalls.doorClosed,
+      structuralWalls.doorAjar,
+      structuralWalls.doorOpen,
+    ]) {
+      expect([state.width, state.height]).toEqual([256, 128]);
+    }
+  });
+
+  it.each(['north', 'south', 'west', 'east'] as const)(
+    'slides along the %s inner face, including transparent padding inside the wall cell',
+    (side) => {
+      const state = createGame();
+      for (const player of state.players) {
+        player.x = side === 'west' ? 113 : side === 'east' ? 1175 : 640;
+        player.y = side === 'north' ? 124 : side === 'south' ? 772 : 448;
+        const before = { x: player.x, y: player.y };
+        const input = {
+          x: side === 'west' ? -1 : 1,
+          y: side === 'north' ? -1 : 1,
+          run: true,
+        };
+        movePlayer(
+          player,
+          input,
+          0.1,
+          state.world.bounds,
+          state.world.objects.map((object) => object.collider),
+        );
+        if (side === 'north' || side === 'south') {
+          expect(player.y).toBe(before.y);
+          expect(player.x).toBeGreaterThan(before.x);
+        } else {
+          expect(player.x).toBe(before.x);
+          expect(player.y).toBeGreaterThan(before.y);
+        }
+        expect(player.motion).toBe('run');
+      }
+    },
+  );
 
   it.each([
     [1200, 600],
     [375, 300],
     [600, 1200],
   ])(
-    'frames every visible wall and north-boundary player label in %i by %i',
+    'frames all final wall pieces and north-wall labels at %i by %i',
     (width, height) => {
       const camera = fitCamera(
         width,
@@ -128,14 +193,14 @@ describe('structural wall layout', () => {
         world.height,
         world.visualBounds,
       );
-      for (const rect of walls.map(visibleWall)) {
-        expect(camera.x + rect.x * camera.scale).toBeGreaterThanOrEqual(0);
-        expect(camera.y + rect.y * camera.scale).toBeGreaterThanOrEqual(0);
+      for (const sprite of walls) {
+        expect(camera.x + sprite.x * camera.scale).toBeGreaterThanOrEqual(0);
+        expect(camera.y + sprite.y * camera.scale).toBeGreaterThanOrEqual(0);
         expect(
-          camera.x + (rect.x + rect.width) * camera.scale,
+          camera.x + (sprite.x + sprite.width) * camera.scale,
         ).toBeLessThanOrEqual(width);
         expect(
-          camera.y + (rect.y + rect.height) * camera.scale,
+          camera.y + (sprite.y + sprite.height) * camera.scale,
         ).toBeLessThanOrEqual(height);
       }
       const labelTop =

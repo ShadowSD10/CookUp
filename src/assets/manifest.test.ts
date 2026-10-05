@@ -1,41 +1,59 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   assetPaths,
   assetUrl,
   characters,
-  environment,
+  structuralWalls,
   getClip,
 } from './manifest';
 import { DIRECTIONS } from '../entities/player';
 
 describe('original asset manifest', () => {
+  const finalAssets = Object.values(structuralWalls);
+  const finalPaths = new Set(finalAssets.map((asset) => asset.path));
   it('resolves every registered PNG and verifies actual dimensions', () => {
     for (const path of assetPaths) {
       const png = readFileSync(resolve('public', path));
       expect(png.subarray(1, 4).toString(), path).toBe('PNG');
-      const structural =
-        path === environment.wallHorizontal ||
-        path === environment.wallVertical;
-      const size = path.includes('/Environment/') && !structural ? 128 : 256;
-      expect(png.readUInt32BE(16), path).toBe(size);
-      expect(png.readUInt32BE(20), path).toBe(size);
+      const structural = finalAssets.find((asset) => asset.path === path);
+      const size = path.includes('/Environment/') ? 128 : 256;
+      expect(png.readUInt32BE(16), path).toBe(structural?.width ?? size);
+      expect(png.readUInt32BE(20), path).toBe(structural?.height ?? size);
     }
   });
-  it('uses the two supplied structural wall files rather than legacy thin walls', () => {
-    expect(environment.wallHorizontal).toBe(
-      'assets/Spirits/Environment/Kitchen Structural Wall Kit v2/cookup-structural-wall-horizontal-v2-256.png',
+  it('registers every final-kit PNG and excludes every obsolete structural asset', () => {
+    const root = 'assets/Spirits/Environment/Kitchen Structural Wall Kit Final';
+    const files = readdirSync(resolve('public', root), { recursive: true })
+      .filter(
+        (file): file is string =>
+          typeof file === 'string' && file.endsWith('.png'),
+      )
+      .map((file) => `${root}/${file.replaceAll('\\', '/')}`);
+    expect(files).toHaveLength(18);
+    expect(finalPaths).toEqual(new Set(files));
+    expect(finalAssets).toHaveLength(18);
+    for (const path of finalPaths) expect(assetPaths).toContain(path);
+    expect(structuralWalls.horizontal.path).toBe(
+      `${root}/Walls/cookup-structural-wall-horizontal-256x128.png`,
     );
-    expect(environment.wallVertical).toBe(
-      'assets/Spirits/Environment/Kitchen Structural Wall Kit v2/cookup-structural-wall-vertical-v2-256.png',
+    expect(structuralWalls.vertical.path).toBe(
+      `${root}/Walls/cookup-structural-wall-vertical-128x256.png`,
     );
-    expect(assetPaths).not.toContain(
-      'assets/Spirits/Environment/Empty Kitchen/Walls/cookup-wall-horizontal-128.png',
-    );
-    expect(assetPaths).not.toContain(
-      'assets/Spirits/Environment/Empty Kitchen/Walls/cookup-wall-vertical-128.png',
-    );
+    expect([
+      structuralWalls.horizontal.width,
+      structuralWalls.horizontal.height,
+    ]).toEqual([256, 128]);
+    expect([
+      structuralWalls.vertical.width,
+      structuralWalls.vertical.height,
+    ]).toEqual([128, 256]);
+    for (const path of assetPaths) {
+      expect(path).not.toMatch(
+        /Wall Kit v2|Empty Kitchen\/(?:Walls|Windows|Openings|Transitions)\//,
+      );
+    }
   });
   it('registers eight frames for idle and every walk/run direction for both chefs', () => {
     for (const character of ['maleCook', 'femaleCook'] as const) {

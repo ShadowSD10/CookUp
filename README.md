@@ -65,17 +65,27 @@ clock, and plant images. Walls and plant bases block movement. The door is
 closed; there is no exit interaction. Chefs can pass through each other.
 Both players stay visible using a camera that fits the whole room.
 
-Structural walls use the two supplied 256 × 256 images at native world size,
-not scaled down to a tile. Their two-cell footprints, rendering offsets, and
-clipping rectangles are separate from the unchanged room collision bounds.
-Floor placement remains a 10 × 7 layout on the 128-unit grid. Wall visuals extend
-outside that layout; the shared camera includes their explicit visual bounds.
+The entire perimeter uses **Kitchen Structural Wall Kit Final**, registered in
+`src/assets/manifest.ts`. Horizontal pieces are 256 × 128, vertical pieces are
+128 × 256, and single-cell fillers/corners are 128 × 128. Every structural
+top-left anchor is on the 128-unit grid, with native size and orientation:
+no runtime rotation, stretching, wall clipping, or v2/legacy structural overlays.
+The 10 × 7 world remains 1280 × 896 units.
 
-The structural kit currently contains only horizontal and vertical pieces.
-Corners use simple overlapping-free butt joins, and end modules are clipped
-without stretching. Existing 128px door/window details and the clock remain
-as overlays at their native size. Matching structural corners, caps, doorway,
-and window assets are still needed for a fully consistent architectural style.
+Matching directional corners close the perimeter. The north doorway frame and
+closed door share the same two-cell anchor; north windows replace wall slots
+with the final horizontal window-wall rather than overlaying an old window.
+All 18 kit images are registered and loaded. Open/ajar doors are available visual
+alternatives, not gameplay. Caps are not placed because this room has no exposed
+wall ends; the vertical window is available without adding new side windows to
+the existing layout.
+
+Collision remains explicitly defined, independent of PNG dimensions: the final
+inner faces bound x=96..1192 and y=112..784. Floor tiles extend underneath the
+opaque wall bands to avoid gaps at the matching corners. The existing camera fits
+the world plus north-label headroom, without oversized exterior-wall padding.
+Original floor/decor images are retained, but old walls, corners, transitions,
+doorway, and windows are not registered or rendered.
 
 Animation definitions support source dimensions, frame count (via the frame
 array), speed, looping, and current frame. Both chefs use the existing eight-frame

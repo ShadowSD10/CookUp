@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import type { GameState } from '../src/game/state';
 import { fitCamera } from '../src/rendering/camera';
+import { assetUrl, structuralWalls } from '../src/assets/manifest';
 
 declare global {
   interface Window {
@@ -212,26 +213,102 @@ test('the production build works mounted under a GitHub Pages project path', asy
   expect(unexpectedPaths).toEqual([]);
 });
 
-test('loads both new wall images and paints all four structural borders', async ({
+test('loads only the final structural kit and renders matching walls, corners, doorway, and windows', async ({
   page,
 }) => {
-  const wallRequests: string[] = [];
+  const imageRequests: string[] = [];
   page.on('response', (response) => {
-    if (
-      response.url().includes('cookup-structural-wall-') &&
-      response.status() === 200
-    ) {
-      wallRequests.push(response.url());
+    if (response.url().endsWith('.png') && response.status() === 200) {
+      imageRequests.push(decodeURIComponent(new URL(response.url()).pathname));
     }
   });
   await openKitchen(page);
-  expect(
-    wallRequests.some((url) => url.includes('horizontal-v2-256.png')),
-  ).toBe(true);
-  expect(wallRequests.some((url) => url.includes('vertical-v2-256.png'))).toBe(
-    true,
-  );
+  for (const asset of Object.values(structuralWalls)) {
+    expect(imageRequests).toContain(`/${asset.path}`);
+  }
+  for (const path of imageRequests) {
+    expect(path).not.toMatch(
+      /Wall Kit v2|Empty Kitchen\/(?:Walls|Windows|Openings|Transitions)\//,
+    );
+  }
   const { world } = await snapshot(page);
+  const samples = [
+    {
+      asset: structuralWalls.horizontalSingle,
+      x: 192,
+      y: 64,
+      sourceX: 64,
+      sourceY: 64,
+    },
+    {
+      asset: structuralWalls.horizontal,
+      x: 256,
+      y: 832,
+      sourceX: 128,
+      sourceY: 64,
+    },
+    {
+      asset: structuralWalls.vertical,
+      x: 64,
+      y: 512,
+      sourceX: 64,
+      sourceY: 128,
+    },
+    {
+      asset: structuralWalls.vertical,
+      x: 1216,
+      y: 512,
+      sourceX: 64,
+      sourceY: 128,
+    },
+    { asset: structuralWalls.topLeft, x: 64, y: 64, sourceX: 64, sourceY: 64 },
+    {
+      asset: structuralWalls.topRight,
+      x: 1216,
+      y: 64,
+      sourceX: 64,
+      sourceY: 64,
+    },
+    {
+      asset: structuralWalls.bottomLeft,
+      x: 64,
+      y: 832,
+      sourceX: 64,
+      sourceY: 64,
+    },
+    {
+      asset: structuralWalls.bottomRight,
+      x: 1216,
+      y: 832,
+      sourceX: 64,
+      sourceY: 64,
+    },
+    { asset: structuralWalls.doorway, x: 576, y: 80, sourceX: 64, sourceY: 80 },
+    {
+      asset: structuralWalls.doorClosed,
+      x: 640,
+      y: 80,
+      sourceX: 128,
+      sourceY: 80,
+    },
+    {
+      asset: structuralWalls.windowHorizontal,
+      x: 366,
+      y: 72,
+      sourceX: 110,
+      sourceY: 72,
+    },
+    {
+      asset: structuralWalls.windowHorizontal,
+      x: 1006,
+      y: 72,
+      sourceX: 110,
+      sourceY: 72,
+    },
+  ].map(({ asset, ...sample }) => ({
+    ...sample,
+    url: assetUrl(asset.path, '/'),
+  }));
   for (const viewport of [
     { width: 1280, height: 900 },
     { width: 390, height: 844 },
@@ -257,16 +334,7 @@ test('loads both new wall images and paints all four structural borders', async 
       world.height,
       world.visualBounds,
     );
-    const points = [
-      { x: 384, y: -10 },
-      { x: 384, y: 920 },
-      { x: 0, y: 384 },
-      { x: 1280, y: 384 },
-      { x: -40, y: -10 },
-      { x: 1320, y: -10 },
-      { x: -40, y: 920 },
-      { x: 1320, y: 920 },
-    ].map(({ x, y }) => ({
+    const points = samples.map(({ x, y }) => ({
       x: camera.x + x * camera.scale,
       y: camera.y + y * camera.scale,
     }));
@@ -276,23 +344,45 @@ test('loads both new wall images and paints all four structural borders', async 
       expect(point.x).toBeLessThan(size.width);
       expect(point.y).toBeLessThan(size.height);
     }
-    const pixels = await canvas.evaluate((el: HTMLCanvasElement, samples) => {
-      const ctx = el.getContext('2d');
-      if (!ctx) throw new Error('Canvas context missing');
-      return samples.map(({ x, y }) =>
-        Array.from(
-          ctx.getImageData(
-            Math.floor(x * devicePixelRatio),
-            Math.floor(y * devicePixelRatio),
-            1,
-            1,
-          ).data,
-        ),
-      );
-    }, points);
+    const pixels = await canvas.evaluate(
+      async (el: HTMLCanvasElement, samples) => {
+        const ctx = el.getContext('2d');
+        if (!ctx) throw new Error('Canvas context missing');
+        const transform = ctx.getTransform();
+        return Promise.all(
+          samples.map(async (sample) => {
+            const x = Math.floor(transform.e + sample.x * transform.a);
+            const y = Math.floor(transform.f + sample.y * transform.d);
+            const image = new Image();
+            image.src = sample.url;
+            await image.decode();
+            const reference = document.createElement('canvas');
+            reference.width = image.naturalWidth;
+            reference.height = image.naturalHeight;
+            const ref = reference.getContext('2d');
+            if (!ref) throw new Error('Reference canvas context missing');
+            ref.drawImage(image, 0, 0);
+            const sourceX = Math.floor(
+              (x + 0.5 - transform.e) / transform.a - sample.x + sample.sourceX,
+            );
+            const sourceY = Math.floor(
+              (y + 0.5 - transform.f) / transform.d - sample.y + sample.sourceY,
+            );
+            return {
+              asset: sample.url,
+              actual: Array.from(ctx.getImageData(x, y, 1, 1).data),
+              expected: Array.from(
+                ref.getImageData(sourceX, sourceY, 1, 1).data,
+              ),
+            };
+          }),
+        );
+      },
+      samples,
+    );
     for (const pixel of pixels) {
-      expect(pixel[3]).toBe(255);
-      expect(pixel.slice(0, 3)).not.toEqual([25, 46, 48]);
+      expect(pixel.expected[3]).toBe(255);
+      expect(pixel.actual, pixel.asset).toEqual(pixel.expected);
     }
   }
 });
@@ -300,12 +390,12 @@ test('loads both new wall images and paints all four structural borders', async 
 test('a missing structural wall reports the actual asset failure', async ({
   page,
 }) => {
-  await page.route('**/cookup-structural-wall-vertical-v2-256.png', (route) =>
+  await page.route('**/cookup-structural-wall-vertical-128x256.png', (route) =>
     route.abort(),
   );
   await page.goto('/');
   await expect(page.locator('#error')).toContainText(
-    'cookup-structural-wall-vertical-v2-256.png',
+    'cookup-structural-wall-vertical-128x256.png',
   );
   await expect(page.locator('canvas')).toHaveAttribute('data-status', 'error');
 });

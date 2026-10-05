@@ -1,4 +1,8 @@
-import { environment } from '../assets/manifest';
+import {
+  environment,
+  structuralWalls,
+  type StructuralAsset,
+} from '../assets/manifest';
 import type { Rect } from '../systems/collision';
 
 export const TILE_SIZE = 128;
@@ -12,7 +16,6 @@ export interface WorldSprite {
   width: number;
   height: number;
   footprint: Rect;
-  clip?: Rect;
 }
 
 export interface WorldObject extends WorldSprite {
@@ -33,35 +36,30 @@ export interface World {
 }
 
 export function createWorld(): World {
+  const width = COLUMNS * TILE_SIZE;
+  const height = ROWS * TILE_SIZE;
+  // Explicit inner wall faces in world coordinates; PNG padding is not collision.
+  const left = 96;
+  const top = 112;
+  const right = (COLUMNS - 1) * TILE_SIZE + 40;
+  const bottom = (ROWS - 1) * TILE_SIZE + 16;
   const bounds = {
-    x: 84,
-    y: 84,
-    width: COLUMNS * TILE_SIZE - 168,
-    height: ROWS * TILE_SIZE - 168,
-  };
-  // Native PNG ink bounds: horizontal y=32..232, vertical x=48..212.
-  // These describe artwork placement, not the player's collision geometry.
-  const wallVisual = {
-    size: 256,
-    horizontalTop: 32,
-    horizontalBottom: 233,
-    verticalLeft: 48,
-    verticalRight: 213,
-  };
-  const wallWidth = wallVisual.verticalRight - wallVisual.verticalLeft;
-  const wallHeight = wallVisual.horizontalBottom - wallVisual.horizontalTop;
-  const visualBounds: Rect = {
-    x: bounds.x - wallWidth,
-    y: bounds.y - wallHeight,
-    width: bounds.width + 2 * wallWidth,
-    height: bounds.height + 2 * wallHeight,
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
   };
   const world: World = {
-    width: COLUMNS * TILE_SIZE,
-    height: ROWS * TILE_SIZE,
+    width,
+    height,
     bounds,
-    floorBounds: { ...bounds },
-    visualBounds,
+    floorBounds: {
+      x: TILE_SIZE / 2,
+      y: TILE_SIZE / 2,
+      width: width - TILE_SIZE,
+      height: height - TILE_SIZE,
+    },
+    visualBounds: { x: 0, y: 0, width, height },
     floors: [],
     structures: [],
     foreground: [],
@@ -96,71 +94,51 @@ export function createWorld(): World {
       );
     }
   }
-  const right = bounds.x + bounds.width;
-  const bottom = bounds.y + bounds.height;
-  const horizontalWall = (column: number, south: boolean): WorldSprite => ({
-    asset: environment.wallHorizontal,
+  const structure = (
+    asset: StructuralAsset,
+    column: number,
+    row: number,
+  ): WorldSprite => ({
+    asset: asset.path,
+    x: column * TILE_SIZE,
+    y: row * TILE_SIZE,
+    width: asset.width,
+    height: asset.height,
     footprint: {
       x: column * TILE_SIZE,
-      y: south ? (ROWS - 1) * TILE_SIZE : 0,
-      width: 2 * TILE_SIZE,
-      height: TILE_SIZE,
-    },
-    x: column * TILE_SIZE,
-    y: south
-      ? bottom - wallVisual.horizontalTop
-      : bounds.y - wallVisual.horizontalBottom,
-    width: wallVisual.size,
-    height: wallVisual.size,
-    clip: {
-      x: visualBounds.x,
-      y: south ? bottom : visualBounds.y,
-      width: visualBounds.width,
-      height: wallHeight,
+      y: row * TILE_SIZE,
+      width: asset.width,
+      height: asset.height,
     },
   });
-  // Partial end modules are clipped, never resized. Horizontal runs cover the
-  // corner joins; dedicated structural corner/cap images are not in this kit.
-  for (let column = -1; column < COLUMNS; column += 2) {
-    world.structures.push(horizontalWall(column, false));
-    world.foreground.push(horizontalWall(column, true));
-  }
-  for (let row = 0; row < ROWS; row += 2) {
-    for (const east of [false, true]) {
-      world.structures.push({
-        asset: environment.wallVertical,
-        footprint: {
-          x: east ? (COLUMNS - 1) * TILE_SIZE : 0,
-          y: row * TILE_SIZE,
-          width: TILE_SIZE,
-          height: 2 * TILE_SIZE,
-        },
-        x: east
-          ? right - wallVisual.verticalLeft
-          : bounds.x - wallVisual.verticalRight,
-        y: row * TILE_SIZE,
-        width: wallVisual.size,
-        height: wallVisual.size,
-        clip: {
-          x: east ? right : visualBounds.x,
-          y: bounds.y,
-          width: wallWidth,
-          height: bounds.height,
-        },
-      });
-    }
-  }
-  const wallDetail = (asset: string, column: number): WorldSprite => ({
-    ...tile(asset, column, 0),
-    y: bounds.y - TILE_SIZE - 32,
-  });
+  const doorway = { column: 4, row: 0 };
   world.structures.push(
-    wallDetail(environment.window, 2),
-    wallDetail(environment.window, 7),
-    wallDetail(environment.door, 4),
-    wallDetail(environment.doorFrame, 4),
-    wallDetail(environment.clock, 5),
+    structure(structuralWalls.topLeft, 0, 0),
+    structure(structuralWalls.horizontalSingle, 1, 0),
+    structure(structuralWalls.windowHorizontal, 2, 0),
+    structure(structuralWalls.doorway, doorway.column, doorway.row),
+    structure(structuralWalls.doorClosed, doorway.column, doorway.row),
+    structure(structuralWalls.horizontalSingle, 6, 0),
+    structure(structuralWalls.windowHorizontal, 7, 0),
+    structure(structuralWalls.topRight, COLUMNS - 1, 0),
   );
+  for (const column of [0, COLUMNS - 1]) {
+    world.structures.push(
+      structure(structuralWalls.vertical, column, 1),
+      structure(structuralWalls.vertical, column, 3),
+      structure(structuralWalls.verticalSingle, column, 5),
+    );
+  }
+  world.foreground.push(
+    structure(structuralWalls.bottomLeft, 0, ROWS - 1),
+    structure(structuralWalls.bottomRight, COLUMNS - 1, ROWS - 1),
+  );
+  for (let column = 1; column < COLUMNS - 1; column += 2) {
+    world.foreground.push(
+      structure(structuralWalls.horizontal, column, ROWS - 1),
+    );
+  }
+  world.structures.push(tile(environment.clock, 6, 0));
   world.floors.push(tile(environment.mat, 4, 1));
   for (const column of [1, COLUMNS - 2]) {
     const plant = tile(environment.plant, column, 1);
