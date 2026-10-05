@@ -1,5 +1,48 @@
 # CookUp — Session Report
 
+## October 5, 2026, 16:01 IST — Movement speed adjustment
+
+**Milestone:** Milestone 0 — Playable Empty Kitchen  
+**Outcome:** Increased both players' movement speeds without adding gameplay or
+changing character artwork.
+
+### Changes
+
+- Updated the centralized `PLAYER_CONFIG` values in
+  [src/core/config.ts](../src/core/config.ts):
+  - Walk: **190 → 270 world units per second**.
+  - Run: **310 → 450 world units per second**.
+- Kept speeds configurable in the same location.
+- Left delta-time movement, diagonal normalization, input bindings, collision,
+  animation, and rendering logic unchanged.
+- Did not modify any existing character sprites or other original assets.
+- Did not add kitchen objects or any new gameplay.
+
+### Verification
+
+Ran the existing tests without changing their expectations:
+
+| Command            | Result                                                |
+| ------------------ | ----------------------------------------------------- |
+| `npm run test`     | Passed: 32 unit tests across 3 files                  |
+| `npm run build`    | Passed: TypeScript checking and Vite production build |
+| `npm run test:e2e` | Passed: all 8 Chromium browser tests                  |
+
+Lint and formatting checks also passed. Git confirmed that the original assets
+were unchanged; only the centralized configuration and this report were modified.
+
+The existing tests continue to cover frame-rate-independent movement, normalized
+diagonal speed, simultaneous controls, collision, animations, restart, focus loss,
+resizing, asset failures, and subdirectory hosting with the increased speeds.
+
+Added this entry above the original report so the latest session results appear
+first. The historical report below retains the original implementation details
+and original speed values for reference.
+
+---
+
+## Original implementation session
+
 **Date:** October 5, 2026  
 **Milestone:** Milestone 0 — Playable Empty Kitchen  
 **Outcome:** A working, locally verified, static two-player kitchen prototype.

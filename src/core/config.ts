@@ -18,8 +18,8 @@ export const CONTROLS: readonly [Controls, Controls] = [
 ];
 
 export const PLAYER_CONFIG = {
-  walkSpeed: 190,
-  runSpeed: 310,
+  walkSpeed: 270,
+  runSpeed: 450,
   renderScale: 0.5,
   anchorX: 0.5,
   anchorY: 0.94,
