@@ -73,7 +73,8 @@ are 256 × 256, vertical walls are 128 × 256, and corners/caps are 128 × 256.
 Visible horizontal architecture is 240 units high, versus a 128-unit chef frame;
 visible side-wall width is only 56 units. All structural top-left anchors remain
 on the **128-unit grid**, with zero offsets, native proportions, and no rotation,
-stretching, wall clipping, or old structural overlays.
+stretching, or old structural overlays. The south foreground uses the display-only
+cutaway described below; the original wall canvases and grid footprints stay intact.
 
 The approved room expansion is **10 × 9 cells / 1280 × 1152 units**. North
 modules occupy rows 0–1, south modules rows 7–8. Side runs begin at row 2,
@@ -90,10 +91,24 @@ directional caps, and both orientations of door frames/states. Unneeded caps,
 inside corners, and vertical doors are not placed in this rectangular room.
 
 Collision remains explicitly defined, independent of PNG dimensions: the playable
-inner faces bound x=96..1192 and y=248..904. Foot colliders and movement speeds
-are unchanged. The south wall begins beyond the chefs' sprite bottoms, so the
-existing foreground pass does not hide them; north walls stay behind the chefs.
-Floor tiles extend under opaque wall bands to prevent seams.
+room edges bound x=96..1192 and y=248..952. Foot colliders and movement speeds
+are unchanged. The south collision boundary is independent of its artwork:
+chefs' feet can reach y=940, 36 units past the wall's first opaque horizontal row
+at y=904. The foreground hides their lower bodies while leaving heads/shoulders
+and labels readable. This adds 48 units of southward movement without shrinking
+the floor or changing the 10 × 9 room.
+
+South modules remain at row 7 with their native 256-unit height. After drawing
+the chefs, the renderer clips only the foreground layer to y=896..1046, displaying
+the cap and upper panel through the existing horizontal seam. This approved
+cutaway reduces the heavy lower facade without resizing or modifying any PNG.
+The cutaway edge is not a collider. North/side walls, camera framing, and floor
+tiling are unchanged. Floor tiles extend under opaque wall bands to prevent seams.
+
+The original north-wall clock renders at **1.75×** its former size (a 224 × 224
+padded canvas), centered at world (832,96) on the filler between the doorway and
+right window. Its occupied grid footprint stays unchanged, and image smoothing
+remains disabled.
 
 The agreed default is a **closed perimeter door**, with no door interaction.
 `createWorld` also supports closed/ajar/open configurations. Open requires explicit

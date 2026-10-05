@@ -54,6 +54,8 @@ describe('playable kitchen', () => {
     { x: 0, y: -1 },
     { x: 0, y: 1 },
     { x: -1, y: -1 },
+    { x: 1, y: -1 },
+    { x: -1, y: 1 },
     { x: 1, y: 1 },
   ])('keeps both players within boundaries for $x, $y', (direction) => {
     const state = createGame();
@@ -75,6 +77,52 @@ describe('playable kitchen', () => {
       );
       expect(player.motion).toBe('idle');
     }
+  });
+
+  it.each([false, true])(
+    'enters the south foreground region and stops at the physical boundary with run=%s',
+    (run) => {
+      const state = createGame();
+      for (const player of state.players) player.y = 880;
+      const south = { x: 0, y: 1, run };
+      let entered = false;
+      for (let i = 0; i < 240; i++) {
+        updateGame(state, [south, south], 1 / 120);
+        for (const player of state.players) {
+          if (player.y > 904 && player.y < 940) entered = true;
+          expect(player.y).toBeLessThanOrEqual(940);
+          expect(player.y - 128 * PLAYER_CONFIG.anchorY).toBeLessThan(904);
+        }
+      }
+      expect(entered).toBe(true);
+      for (const player of state.players) {
+        expect(player.y).toBe(940);
+        expect(player.y + player.collisionHeight / 2).toBe(952);
+        expect(player.motion).toBe('idle');
+      }
+      updateGame(
+        state,
+        [
+          { x: 0, y: -1, run: false },
+          { x: 0, y: -1, run: false },
+        ],
+        0.1,
+      );
+      for (const player of state.players) expect(player.y).toBe(913);
+    },
+  );
+
+  it('uses the south collider even with expanded movement bounds and changed visual dimensions', () => {
+    const state = createGame();
+    state.world.bounds.height += 500;
+    state.world.foregroundBounds.height = 100;
+    for (const wall of state.world.foreground) {
+      wall.y += 128;
+      wall.height = 512;
+    }
+    const south = { x: 0, y: 1, run: true };
+    updateGame(state, [south, south], 10);
+    for (const player of state.players) expect(player.y).toBe(940);
   });
 
   it('blocks the plant base independently of its artwork', () => {

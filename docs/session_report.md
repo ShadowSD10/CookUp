@@ -1,5 +1,141 @@
 # CookUp — Session Report
 
+## October 5, 2026 — Clock, south-wall cutaway, and boundary polish
+
+**Outcome:** Enlarged the original clock, reduced the south facade with an approved
+display-only cutaway, and separated south-wall occlusion from its physical
+collision boundary. Both chefs now enter the foreground wall region before
+stopping, with their upper bodies still visible. The 10 × 9 room, 128-unit grid,
+native tall-wall dimensions, artwork, and floor layout are unchanged.
+
+### Inspection and visual decision
+
+Read the current world construction, renderer, collision flow, and tests, and
+inspected the original clock, horizontal wall, and both south corner images.
+Measured their actual nontransparent pixel bounds:
+
+| Source                     | PNG dimensions | Inclusive alpha bounds |
+| -------------------------- | -------------- | ---------------------- |
+| Tall horizontal wall       | 256 × 256      | (0,8)..(255,247)       |
+| South-left outside corner  | 128 × 256      | (40,0)..(127,247)      |
+| South-right outside corner | 128 × 256      | (0,0)..(95,247)        |
+| Original wall clock        | 128 × 128      | (46,45)..(81,79)       |
+
+The south wall was already native-sized and correctly grid-aligned. Its heavy
+appearance came from displaying the entire 240-unit facade beneath the floor,
+not from an incorrect camera scale or stretched PNG. The old collision edge,
+y=904, coincided with the first opaque horizontal wall row and stopped chef
+feet at y=892, before any meaningful foreground overlap.
+
+The user approved showing the existing south cap and upper panel through its
+authored horizontal seam, rather than retaining the entire lower facade.
+Inspected source rows 142–149 to select the complete seam without cutting a panel
+in half. No asset was generated, edited, rotated, or replaced.
+
+### Clock scale and placement
+
+In [world construction](../src/game/world.ts), the clock now has a centralized
+**1.75** render scale: its padded display rectangle is **224 × 224**, rather
+than 128 × 128. Its center is world **(832,96)**, with draw origin **(720,-16)**.
+The unchanged transparent source margins mean the visible clock is entirely
+inside the north-wall filler, clear of the doorway and right window.
+
+The original grid footprint remains cell (6,0). No decoration collider was added.
+The existing nearest-neighbor renderer keeps the larger clock pixel-crisp.
+Tests assert the exact scale, center, source-alpha clearance, and actual rendered
+clock pixels against the unchanged PNG.
+
+### South-wall rendering
+
+All six south modules remain anchored at **row 7 / y=896**, with their original
+256-unit visual height and two-row footprints. No north, side, or corner placement
+was changed.
+
+The [renderer](../src/rendering/renderer.ts) retains the existing order:
+
+1. Floor tiles.
+2. Normal room structures.
+3. Depth-sorted objects and chefs.
+4. South foreground wall layer.
+
+The last pass now uses a saved/restored Canvas clip with explicit
+`foregroundBounds = { x: 0, y: 896, width: 1280, height: 150 }`.
+This shows the existing cap and upper panel through source row 149, ending at
+world **y=1046**. The same clip applies across straight pieces and both corners;
+it does not resize, resample, move, or reconstruct the wall artwork.
+
+The north wall remains fully visible. The camera, visual bounds, responsive
+canvas, fullscreen behavior, source dimensions, native environment scale, and
+chef scale are unchanged. The cutaway deliberately omits the lower south panel
+and base trim; it is a presentation choice, not missing artwork.
+
+### Independent physical boundary
+
+- Explicit south collision moved from **y=904 to y=952**.
+- The existing 24-unit foot box stops each chef center at **y=940**.
+- Feet can therefore travel **36 units beyond y=904**, the first visible
+  horizontal wall row, before physical collision stops movement.
+- At the stop, the sprite extends from approximately y=819.68 to y=947.68.
+  The foreground covers its lower part while the head/shoulders and label remain
+  visible. The clip itself ends at y=1046 and is not used as collision geometry.
+- The explicit south obstacle is x=96, y=952, width=1096, height=200: it is
+  neither the full PNG rectangle nor its top edge. The enclosing bounds use
+  the same physical south limit.
+- North, west, and east limits remain y=248, x=96, and x=1192. The room remains
+  **1280 × 1152**. The movement rectangle becomes **1096 × 704**, an extra
+  48 units southward. The floor's tiles and clip bounds are unchanged.
+- Door behavior, plant collision, speeds, input, delta-time movement, normalized
+  diagonals, and character artwork/animation are unchanged.
+
+### Automated verification
+
+| Check                  | Result                     |
+| ---------------------- | -------------------------- |
+| `npm run typecheck`    | Passed                     |
+| `npm run lint`         | Passed                     |
+| `npm run format:check` | Passed                     |
+| `npm run test`         | 57 tests passed in 4 files |
+| `npm run build`        | Passed                     |
+| `npm run test:e2e`     | 17 Chromium tests passed   |
+
+Added/updated coverage for:
+
+- Both chefs walking and running into the foreground region before stopping at
+  exactly y=940; no escape and normal movement back out.
+- All four axial directions and all four diagonals, plus sliding along each wall.
+- Collision still stopping at y=940 after tests deliberately change wall visual
+  position/height, foreground clipping, and the outer movement clamp.
+- Native 256-unit south assets and grid anchors remaining unchanged while the
+  shared visible cutaway is 150 units high.
+- Exact clock scale and clear placement on the north wall.
+- Actual browser pixels matching the chef PNGs above the occlusion edge and the
+  wall PNG in front of their lower bodies. Pixel checks also verify the retained
+  seam, clipped-off lower facade, and enlarged clock.
+- Existing asset hashes, coherent perimeter, open-door fixture, camera fit,
+  responsive/high-DPI canvas, fullscreen, simultaneous input, and error handling.
+
+### Actual visual inspection
+
+Launched the production build locally on port 4174 and inspected fresh
+**1440 × 1000 desktop** screenshots of the running game:
+
+- Full room: north architecture and floor area unchanged; clock noticeably larger
+  and correctly placed; the shorter visible south facade looks less heavy.
+- Both chefs approaching the south wall at **y=876.6**: fully visible.
+- Both chefs partially entering at **y=917.1**: lower bodies naturally occluded.
+- Both chefs stopped at **y=940**: heads/shoulders and labels remain visible.
+- Running diagonally along the south wall into both corners: stopped at
+  **(1175,940)** and **(113,940)** without escaping or disappearing.
+- Returning up both side walls: stopped correctly at **y=260**, with normal
+  north-wall layering.
+
+No abrupt pop-through or complete concealment was observed. Smoothing remained
+disabled. The inspection screenshots are retained in the session artifact
+directory. Responsive/fullscreen regression checks passed automatically; this
+milestone's manual visual inspection focused on the requested normal desktop view.
+
+Previous report entries below remain unchanged as historical milestone records.
+
 ## October 5, 2026, 19:54 IST — Tall structural wall kit integration
 
 **Outcome:** The playable kitchen now renders the supplied Tall kit as one

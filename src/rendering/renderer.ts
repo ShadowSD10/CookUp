@@ -67,7 +67,13 @@ export class Renderer {
     ];
     depthEntries.sort((a, b) => a.depth - b.depth);
     for (const entry of depthEntries) entry.draw();
+    ctx.save();
+    ctx.beginPath();
+    const foreground = state.world.foregroundBounds;
+    ctx.rect(foreground.x, foreground.y, foreground.width, foreground.height);
+    ctx.clip();
     for (const sprite of state.world.foreground) this.drawSprite(sprite);
+    ctx.restore();
   }
 
   private drawSprite(sprite: WorldSprite): void {

@@ -16,10 +16,10 @@ describe('tall structural wall layout', () => {
   );
   const perimeter = walls.filter((sprite) => sprite.footprint.width > 0);
 
-  it('preserves the grid, scale, and nearly the same clear floor area with two-row walls', () => {
+  it('preserves the grid, scale, room dimensions and floor while expanding southward movement', () => {
     expect(TILE_SIZE).toBe(128);
     expect([world.width, world.height]).toEqual([1280, 1152]);
-    expect(world.bounds).toEqual({ x: 96, y: 248, width: 1096, height: 656 });
+    expect(world.bounds).toEqual({ x: 96, y: 248, width: 1096, height: 704 });
     expect(
       (world.bounds.width * world.bounds.height) / (1096 * 672),
     ).toBeGreaterThan(0.97);
@@ -107,7 +107,7 @@ describe('tall structural wall layout', () => {
     ).toBe(false);
   });
 
-  it('uses authored corners at two-row spacing and keeps the south wall clear of chef silhouettes', () => {
+  it('keeps native two-row modules but presents one continuous south cutaway independent of collision', () => {
     for (const [asset, x, y] of [
       [structuralWalls.topLeft.path, 0, 0],
       [structuralWalls.topRight.path, 1152, 0],
@@ -120,12 +120,55 @@ describe('tall structural wall layout', () => {
     }
     expect(world.foreground).toHaveLength(6);
     expect(world.foreground.every((wall) => wall.y === 896)).toBe(true);
-    const southernFeet =
-      world.bounds.y + world.bounds.height - PLAYER_CONFIG.collisionHeight / 2;
+    expect(world.foregroundBounds).toEqual({
+      x: 0,
+      y: 896,
+      width: 1280,
+      height: 150,
+    });
+    const southernFace = world.bounds.y + world.bounds.height;
+    expect(southernFace).toBe(952);
+    expect(world.wallColliders).toContainEqual({
+      x: 96,
+      y: 952,
+      width: 1096,
+      height: 200,
+    });
+    const southernFeet = southernFace - PLAYER_CONFIG.collisionHeight / 2;
     const spriteBottom =
       southernFeet +
       256 * PLAYER_CONFIG.renderScale * (1 - PLAYER_CONFIG.anchorY);
-    expect(spriteBottom).toBeLessThan(896 + 8);
+    expect(southernFeet).toBe(940);
+    expect(spriteBottom).toBeGreaterThan(904);
+    const spriteTop =
+      southernFeet - 256 * PLAYER_CONFIG.renderScale * PLAYER_CONFIG.anchorY;
+    expect(904 - spriteTop).toBeGreaterThan(80);
+    expect(spriteBottom - 904).toBeLessThan(48);
+    expect(southernFace).not.toBe(
+      world.foregroundBounds.y + world.foregroundBounds.height,
+    );
+  });
+
+  it('enlarges only the existing clock by 1.75 with a centered, clear north-wall anchor', () => {
+    const clock = world.structures.find(
+      (sprite) => sprite.asset === environment.clock,
+    );
+    expect(clock).toMatchObject({
+      x: 720,
+      y: -16,
+      width: 224,
+      height: 224,
+      footprint: { x: 768, y: 0, width: 128, height: 128 },
+    });
+    if (!clock) throw new Error('Expected the original clock');
+    expect(clock.width / 128).toBe(1.75);
+    expect(clock.height / 128).toBe(1.75);
+    expect(clock.x + clock.width / 2).toBe(832);
+    // Source alpha bounds are [46,45]..[81,79], inside a padded 128px canvas.
+    expect(clock.x + 46 * 1.75).toBeGreaterThan(768);
+    expect(clock.x + 82 * 1.75).toBeLessThan(896);
+    expect(clock.y + 45 * 1.75).toBeGreaterThan(48);
+    expect(clock.y + 80 * 1.75).toBeLessThan(142);
   });
 
   it('replaces wall slots with tall windows and gives the door overlay no additional occupied cells', () => {
@@ -206,7 +249,7 @@ describe('tall structural wall layout', () => {
       const game = createGame();
       game.world = createWorld({ state });
       // Exercise the door collider itself, not just the default room clamp.
-      game.world.bounds = { x: 96, y: -512, width: 1096, height: 1416 };
+      game.world.bounds = { x: 96, y: -512, width: 1096, height: 1464 };
       const overlays = game.world.structures.filter(
         (sprite) => sprite.footprint.width === 0,
       );
@@ -241,7 +284,7 @@ describe('tall structural wall layout', () => {
     const game = createGame();
     game.world = createWorld({
       state: 'open',
-      connectedBounds: { x: 96, y: -512, width: 1096, height: 1416 },
+      connectedBounds: { x: 96, y: -512, width: 1096, height: 1464 },
     });
     const overlays = game.world.structures.filter(
       (sprite) => sprite.footprint.width === 0,
@@ -309,7 +352,7 @@ describe('tall structural wall layout', () => {
       const state = createGame();
       for (const player of state.players) {
         player.x = side === 'west' ? 113 : side === 'east' ? 1175 : 640;
-        player.y = side === 'north' ? 260 : side === 'south' ? 892 : 576;
+        player.y = side === 'north' ? 260 : side === 'south' ? 940 : 576;
         const before = { x: player.x, y: player.y };
         const input = {
           x: side === 'west' ? -1 : 1,

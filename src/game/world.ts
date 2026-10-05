@@ -8,6 +8,9 @@ import type { Rect } from '../systems/collision';
 export const TILE_SIZE = 128;
 const COLUMNS = 10;
 const ROWS = 9;
+const CLOCK_RENDER_SCALE = 1.75;
+const SOUTH_WALL_VISIBLE_HEIGHT = 150;
+const ROOM_EDGES = { left: 96, top: 248, right: 1192, bottom: 952 } as const;
 
 export type DoorConfiguration =
   { state: 'closed' | 'ajar' } | { state: 'open'; connectedBounds: Rect };
@@ -36,6 +39,7 @@ export interface World {
   floors: WorldSprite[];
   structures: WorldSprite[];
   foreground: WorldSprite[];
+  foregroundBounds: Rect;
   objects: WorldObject[];
 }
 
@@ -45,10 +49,7 @@ export function createWorld(
   const width = COLUMNS * TILE_SIZE;
   const height = ROWS * TILE_SIZE;
   // Explicit inner wall faces in world coordinates; PNG padding is not collision.
-  const left = 96;
-  const top = 248;
-  const right = (COLUMNS - 1) * TILE_SIZE + 40;
-  const bottom = (ROWS - 2) * TILE_SIZE + 8;
+  const { left, top, right, bottom } = ROOM_EDGES;
   const bounds = {
     x: left,
     y: top,
@@ -103,6 +104,13 @@ export function createWorld(
     floors: [],
     structures: [],
     foreground: [],
+    // Cut the south facade at its authored panel seam, not at its collider.
+    foregroundBounds: {
+      x: 0,
+      y: (ROWS - 2) * TILE_SIZE,
+      width,
+      height: SOUTH_WALL_VISIBLE_HEIGHT,
+    },
     objects: [],
   };
   const tile = (asset: string, column: number, row: number): WorldSprite => ({
@@ -185,7 +193,15 @@ export function createWorld(
       structure(structuralWalls.horizontal, column, ROWS - 2, 2, 2),
     );
   }
-  world.structures.push(tile(environment.clock, 6, 0));
+  const clock = tile(environment.clock, 6, 0);
+  const clockSize = TILE_SIZE * CLOCK_RENDER_SCALE;
+  world.structures.push({
+    ...clock,
+    x: clock.x + TILE_SIZE / 2 - clockSize / 2,
+    y: 96 - clockSize / 2,
+    width: clockSize,
+    height: clockSize,
+  });
   world.floors.push(tile(environment.mat, 4, 2));
   for (const column of [1, COLUMNS - 2]) {
     const plant = tile(environment.plant, column, 2);

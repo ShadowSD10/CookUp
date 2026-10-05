@@ -1,7 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
 import type { GameState } from '../src/game/state';
 import { fitCamera } from '../src/rendering/camera';
-import { assetUrl, structuralWalls } from '../src/assets/manifest';
+import {
+  assetUrl,
+  getClip,
+  structuralWalls,
+  environment,
+} from '../src/assets/manifest';
+import { PLAYER_CONFIG } from '../src/core/config';
 
 declare global {
   interface Window {
@@ -16,6 +22,62 @@ async function openKitchen(page: Page): Promise<void> {
   await page.goto('/?debug');
   await expect(page.locator('canvas')).toHaveAttribute('data-status', 'ready');
   await page.locator('canvas').focus();
+}
+
+interface PixelSample {
+  url: string;
+  x: number;
+  y: number;
+  sourceX: number;
+  sourceY: number;
+  scale?: number;
+}
+
+async function expectSpritePixels(
+  page: Page,
+  samples: PixelSample[],
+): Promise<void> {
+  const pixels = await page
+    .locator('canvas')
+    .evaluate(async (el: HTMLCanvasElement, samples) => {
+      const ctx = el.getContext('2d');
+      if (!ctx) throw new Error('Canvas context missing');
+      const transform = ctx.getTransform();
+      return Promise.all(
+        samples.map(async (sample) => {
+          const x = Math.floor(transform.e + sample.x * transform.a);
+          const y = Math.floor(transform.f + sample.y * transform.d);
+          const image = new Image();
+          image.src = sample.url;
+          await image.decode();
+          const reference = document.createElement('canvas');
+          reference.width = image.naturalWidth;
+          reference.height = image.naturalHeight;
+          const ref = reference.getContext('2d');
+          if (!ref) throw new Error('Reference canvas context missing');
+          ref.drawImage(image, 0, 0);
+          const sourceX = Math.floor(
+            ((x + 0.5 - transform.e) / transform.a - sample.x) /
+              (sample.scale ?? 1) +
+              sample.sourceX,
+          );
+          const sourceY = Math.floor(
+            ((y + 0.5 - transform.f) / transform.d - sample.y) /
+              (sample.scale ?? 1) +
+              sample.sourceY,
+          );
+          return {
+            asset: sample.url,
+            actual: Array.from(ctx.getImageData(x, y, 1, 1).data),
+            expected: Array.from(ref.getImageData(sourceX, sourceY, 1, 1).data),
+          };
+        }),
+      );
+    }, samples);
+  for (const pixel of pixels) {
+    expect(pixel.expected[3], pixel.asset).toBe(255);
+    expect(pixel.actual, pixel.asset).toEqual(pixel.expected);
+  }
 }
 
 test('loads original assets, renders the canvas, and has no browser errors', async ({
@@ -358,47 +420,124 @@ test('loads only the tall structural kit and renders matching walls, corners, do
       expect(point.x).toBeLessThan(size.width);
       expect(point.y).toBeLessThan(size.height);
     }
-    const pixels = await canvas.evaluate(
-      async (el: HTMLCanvasElement, samples) => {
-        const ctx = el.getContext('2d');
-        if (!ctx) throw new Error('Canvas context missing');
-        const transform = ctx.getTransform();
-        return Promise.all(
-          samples.map(async (sample) => {
-            const x = Math.floor(transform.e + sample.x * transform.a);
-            const y = Math.floor(transform.f + sample.y * transform.d);
-            const image = new Image();
-            image.src = sample.url;
-            await image.decode();
-            const reference = document.createElement('canvas');
-            reference.width = image.naturalWidth;
-            reference.height = image.naturalHeight;
-            const ref = reference.getContext('2d');
-            if (!ref) throw new Error('Reference canvas context missing');
-            ref.drawImage(image, 0, 0);
-            const sourceX = Math.floor(
-              (x + 0.5 - transform.e) / transform.a - sample.x + sample.sourceX,
-            );
-            const sourceY = Math.floor(
-              (y + 0.5 - transform.f) / transform.d - sample.y + sample.sourceY,
-            );
-            return {
-              asset: sample.url,
-              actual: Array.from(ctx.getImageData(x, y, 1, 1).data),
-              expected: Array.from(
-                ref.getImageData(sourceX, sourceY, 1, 1).data,
-              ),
-            };
-          }),
-        );
-      },
-      samples,
-    );
-    for (const pixel of pixels) {
-      expect(pixel.expected[3]).toBe(255);
-      expect(pixel.actual, pixel.asset).toEqual(pixel.expected);
-    }
+    await expectSpritePixels(page, samples);
   }
+});
+
+test('the clock is 1.75x and the south facade ends at a shared native-pixel cutaway seam', async ({
+  page,
+}) => {
+  await openKitchen(page);
+  const { world } = await snapshot(page);
+  const clock = world.structures.find(
+    (sprite) => sprite.asset === environment.clock,
+  );
+  if (!clock) throw new Error('Expected original clock');
+  expect([clock.width, clock.height]).toEqual([224, 224]);
+  const clockSamples = [
+    [64, 48],
+    [50, 62],
+    [78, 62],
+  ] as const;
+  const samples: PixelSample[] = clockSamples.map(([x, y]) => ({
+    url: assetUrl(clock.asset, '/'),
+    x: clock.x + x * 1.75,
+    y: clock.y + y * 1.75,
+    sourceX: x,
+    sourceY: y,
+    scale: 1.75,
+  }));
+  for (const wall of world.foreground) {
+    samples.push({
+      url: assetUrl(wall.asset, '/'),
+      x: wall.x + 64,
+      y: 1043,
+      sourceX: 64,
+      sourceY: 147,
+    });
+    expect(wall.height).toBe(256);
+  }
+  await expectSpritePixels(page, samples);
+  const clippedPixels = await page
+    .locator('canvas')
+    .evaluate((el: HTMLCanvasElement) => {
+      const ctx = el.getContext('2d');
+      if (!ctx) throw new Error('Canvas context missing');
+      const transform = ctx.getTransform();
+      return [64, 256, 640, 1216].map((x) =>
+        Array.from(
+          ctx.getImageData(
+            Math.floor(transform.e + x * transform.a),
+            Math.floor(transform.f + 1050 * transform.d),
+            1,
+            1,
+          ).data,
+        ),
+      );
+    });
+  for (const pixel of clippedPixels) expect(pixel).toEqual([25, 46, 48, 255]);
+});
+
+test('walking and running chefs enter the south wall region, stop, and render behind the foreground with visible heads', async ({
+  page,
+}) => {
+  await openKitchen(page);
+  await page.keyboard.down('KeyS');
+  await page.keyboard.down('ArrowDown');
+  await page.keyboard.down('ShiftRight');
+  await expect
+    .poll(
+      async () => (await snapshot(page)).players.map((player) => player.y),
+      { timeout: 7000 },
+    )
+    .toEqual([940, 940]);
+  await page.keyboard.up('KeyS');
+  await page.keyboard.up('ArrowDown');
+  await page.keyboard.up('ShiftRight');
+  await expect(page.locator('#p1-state')).toHaveText('idle');
+  await expect(page.locator('#p2-state')).toHaveText('idle');
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  const state = await snapshot(page);
+  const samples: PixelSample[] = [];
+  for (const player of state.players) {
+    expect(player.y).toBeGreaterThan(904);
+    expect(player.y + player.collisionHeight / 2).toBe(952);
+    const clip = getClip(player.character, player.animation.clip);
+    const path = clip.frames[player.animation.frame];
+    if (!path) throw new Error('Expected current chef frame');
+    for (const sourceY of [60, 120]) {
+      samples.push({
+        url: assetUrl(path, '/'),
+        x: player.x,
+        y: player.y - 128 * PLAYER_CONFIG.anchorY + sourceY * 0.5,
+        sourceX: 128,
+        sourceY,
+        scale: 0.5,
+      });
+    }
+    const wall = state.world.foreground.find(
+      (sprite) => player.x >= sprite.x && player.x < sprite.x + sprite.width,
+    );
+    if (!wall) throw new Error('Expected foreground in front of chef');
+    samples.push({
+      url: assetUrl(wall.asset, '/'),
+      x: player.x - 10,
+      y: player.y - 10,
+      sourceX: player.x - 10 - wall.x,
+      sourceY: player.y - 10 - wall.y,
+    });
+  }
+  await expectSpritePixels(page, samples);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.keyboard.down('KeyW');
+  await page.keyboard.down('ArrowUp');
+  await expect
+    .poll(async () =>
+      (await snapshot(page)).players.every((player) => player.y < 904),
+    )
+    .toBe(true);
+  await page.keyboard.up('KeyW');
+  await page.keyboard.up('ArrowUp');
 });
 
 test('a missing structural wall reports the actual asset failure', async ({
