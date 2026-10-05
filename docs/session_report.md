@@ -1,5 +1,172 @@
 # CookUp — Session Report
 
+## October 5, 2026, 19:54 IST — Tall structural wall kit integration
+
+**Outcome:** The playable kitchen now renders the supplied Tall kit as one
+complete perimeter. This follow-up supersedes the Final-kit layout below;
+all previous milestone history is preserved.
+
+### Discovery and unchanged source artwork
+
+Inspected the current manifest, world construction, rendering order, collision
+system, tests, and the supplied Tall `README.md` and `assets.json` before editing.
+The named Downloads location was not present on this machine. The complete kit
+was **already supplied in the project's public assets**, so no duplicate copy
+or overwrite was necessary:
+
+```text
+public/assets/Spirits/Environment/Kitchen Structural Wall Kit Tall/
+```
+
+Integrated all **26 PNGs**, alongside the unchanged supplied README and JSON.
+Verified every actual PNG header dimension and SHA-256 hash against `assets.json`.
+No artwork was generated, renamed, rotated, stretched, recolored, or modified.
+Character files and the older kits remain physically untouched.
+
+| Tall category                                    | Count | Native PNG/world dimensions |
+| ------------------------------------------------ | ----: | --------------------------- |
+| Horizontal wall                                  |     1 | 256 × 256                   |
+| Vertical wall                                    |     1 | 128 × 256                   |
+| Horizontal filler                                |     1 | 128 × 256                   |
+| Vertical filler                                  |     1 | 128 × 128                   |
+| Outside / inside directional corners             |     8 | 128 × 256                   |
+| Directional caps                                 |     4 | 128 × 256                   |
+| Horizontal doorway and closed/ajar/open overlays |     4 | 256 × 256                   |
+| Vertical doorway and closed/ajar/open overlays   |     4 | 128 × 256                   |
+| Horizontal window-wall                           |     1 | 256 × 256                   |
+| Vertical window-wall                             |     1 | 128 × 256                   |
+
+The centralized [manifest](../src/assets/manifest.ts) registers the exact filenames,
+native dimensions, and connector directions. It loads the complete tall kit with
+the existing loader/error handling and deployment-base URL encoding. Final,
+v2, and original short wall/corner/door/window/transition assets are absent from
+the active registry and room; no old structural pieces remain underneath.
+The original floor, plants, mat, and clock are intentionally retained.
+
+### Approved two-row layout and rendering
+
+The user approved expanding the bounding room from **10 × 7 to 10 × 9 cells**
+to avoid losing two interior rows. The grid remains **128 × 128**, yielding a
+**1280 × 1152-unit** room. Environment scale is **1.0**; chef scale remains
+**0.5** using the original 256 × 256 source frames.
+
+The horizontal artwork occupies 256 world units vertically, with 240 units of
+visible architecture and 8 transparent units at either end: 1.875 times the
+128-unit rendered chef frame. The side walls remain only 56 units visibly wide.
+Artwork dimensions, explicit grid footprints, render positions, and collision
+rectangles are separate; door overlays have zero additional occupied footprint.
+
+[World construction](../src/game/world.ts) now follows the supplied connector and
+two-row placement rules:
+
+| Location                 | Grid placement                                                              |
+| ------------------------ | --------------------------------------------------------------------------- |
+| North corners            | Outside TL (0,0), TR (9,0), both 1 × 2                                      |
+| North fillers            | (1,0), (6,0), both 1 × 2                                                    |
+| North windows            | Horizontal window-walls (2,0), (7,0), both 2 × 2                            |
+| North doorway            | Frame plus exactly one state at (4,0), same world origin (512,0), 256 × 256 |
+| West/east straight walls | Columns 0 and 9, row 2, each 1 × 2                                          |
+| West/east windows        | Authored vertical window-walls at row 4, each 1 × 2                         |
+| West/east fillers        | Row 6, each 1 × 1                                                           |
+| South corners            | Outside BL (0,7), BR (9,7), both 1 × 2                                      |
+| South wall               | Horizontal 2 × 2 pieces at (1,7), (3,7), (5,7), (7,7)                       |
+
+Every base perimeter cell is covered exactly once, with no interior structural
+cells or doubled window/door bases. Tests match every connector to one reciprocal
+neighbor. All four authored outside corners are used directly. Inside corners
+and caps are registered but not placed because this rectangle has no concave
+returns or exposed ends. Vertical door alternatives are also available but unused.
+
+The deterministic floor tile system remains intact, now covering 90 cells.
+The mat and plants move from row 1 to row 2 to clear the taller north wall; the
+clock stays on its north filler. The unchanged proportional spawn formula now
+places chefs at (512,633.6) and (768,633.6).
+
+The existing renderer order is retained after verification: floors, background
+structures, Y-sorted chefs/decorations, then south foreground walls. At the south
+boundary, the chef sprite bottom is about y=899.68 and the straight wall's
+visible top is y=904, so the tall foreground wall does not cover the chefs.
+North walls remain behind chefs and labels. No renderer clipping, scaling hacks,
+new background image, or layer redesign was necessary.
+
+### Explicit collision and door behavior
+
+- The closed room's inner faces are **x=96..1192, y=248..904**: a
+  **1096 × 656** clear rectangle, versus the previous 1096 × 672. It retains
+  approximately **97.6%** of the former clear area.
+- Player foot boxes, swept-axis collision, normalized diagonal movement,
+  delta-time updates, 270 walk / 450 run speeds, and input are unchanged.
+- Explicit wall colliders are supplied to the existing movement system alongside
+  the existing plant-base colliders. PNG canvas dimensions are not used as
+  automatic collision bounds; transparent side padding is not blocked.
+- The user chose a **closed perimeter door by default**, rather than adding a
+  vestibule or allowing players to escape the current kitchen.
+- Closed and ajar configurations have one matching overlay and block passage.
+  The open configuration requires explicitly supplied connected-room bounds
+  extending north and containing the kitchen. Its door blocker is removed,
+  leaving the passage **x=604..688** clear of the authored open leaf and jamb.
+  Tests move both chefs through y=0 into those bounds and back, and verify jamb
+  collision. Invalid connected bounds raise an explicit error.
+- There is no door interaction or connected-room gameplay. The actual running
+  milestone remains closed and keeps both players inside.
+
+### Verification results
+
+| Check                  | Result                     |
+| ---------------------- | -------------------------- |
+| `npm run typecheck`    | Passed                     |
+| `npm run lint`         | Passed                     |
+| `npm run format:check` | Passed                     |
+| `npm run test`         | 51 tests passed in 4 files |
+| `npm run build`        | Passed                     |
+| `npm run test:e2e`     | 15 Chromium tests passed   |
+
+Unit coverage includes all 26 PNG paths/dimensions/hashes, scale/anchor metadata,
+connector pairing, exact two-row occupancy, all four corner positions, single
+zero-footprint door overlay, closed/ajar collision, open passage traversal,
+both-player movement, wall sliding, no obsolete active artwork, and camera fit.
+An initial test run caught a reversed visual-size/footprint assignment in the
+placement helper; it was corrected before browser verification.
+
+Browser tests load all tall assets and compare actual rendered perimeter pixels
+against the original PNGs on desktop and mobile. Samples cover north/south walls,
+both side walls, four corners, doorway/closed door, and both window orientations.
+Existing resize, high-DPI, real fullscreen, denial/unsupported behavior,
+simultaneous movement, restart, focus loss, load errors, and project-base tests pass.
+
+### Actual browser and screenshot inspection
+
+Launched the production preview locally on port 4174 and opened the running game.
+Viewed fresh screenshots, not merely asset-load results:
+
+- Desktop **1440 × 1000**: complete perimeter, tall wall/chef relationship, all
+  corners, both window orientations, closed doorway, and floor joins inspected.
+- Moved both chefs to the south boundary (y=892), along it to x=1175 and x=113,
+  then up both side walls to y=260. Screenshots at north and south show readable
+  chefs and labels without inappropriate foreground occlusion or escaping.
+- Entered and exited real browser fullscreen. The fullscreen canvas measured
+  **1440 × 956**, with equal X/Y scale and smoothing disabled.
+- Resized to **390 × 844** portrait and **640 × 360** short landscape. The entire
+  room and toolbar remain visible, with no nonuniform stretching or cropping.
+- Also used a native, non-emulated maximized browser: outer **800 × 600**, content
+  **782 × 495** on this display. Inspected its screenshot and completed another
+  fullscreen enter/exit round trip.
+
+No mixed legacy walls, doubled structural pieces, or gaps between modules were
+observed. Camera, fullscreen, canvas sizing, character rendering, animation, and
+input implementation files needed no changes. Fresh desktop/mobile/fullscreen
+and boundary screenshots were retained in the session artifact directory.
+
+### Remaining limitations
+
+The open-door configuration is a tested integration point for a future connected
+room, not an enabled exit or interactive door in this prototype. No additional
+room/floor/camera composition has been added for it. Closed/ajar/open art is
+registered for both orientations, but the running room uses one closed horizontal
+door only. Full-room fitting necessarily makes chefs and labels smaller on narrow
+mobile screens; touch controls remain outside this milestone. No new cooking
+gameplay, furniture, or player-player collision was introduced.
+
 ## October 5, 2026, 17:38 IST — FINAL structural wall kit integration
 
 **Outcome:** Replaced the mixed v2/legacy perimeter with the finalized structural

@@ -29,7 +29,10 @@ export function updateGame(
   if (!Number.isFinite(dt) || dt < 0)
     throw new Error('Delta time must be finite and non-negative');
   if (dt === 0) return;
-  const obstacles = state.world.objects.map((object) => object.collider);
+  const obstacles = [
+    ...state.world.wallColliders,
+    ...state.world.objects.map((object) => object.collider),
+  ];
   for (const index of [0, 1] as const) {
     const player = state.players[index];
     movePlayer(player, inputs[index], dt, state.world.bounds, obstacles);

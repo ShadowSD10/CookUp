@@ -7,7 +7,10 @@ import type { Rect } from '../systems/collision';
 
 export const TILE_SIZE = 128;
 const COLUMNS = 10;
-const ROWS = 7;
+const ROWS = 9;
+
+export type DoorConfiguration =
+  { state: 'closed' | 'ajar' } | { state: 'open'; connectedBounds: Rect };
 
 export interface WorldSprite {
   asset: string;
@@ -27,6 +30,7 @@ export interface World {
   width: number;
   height: number;
   bounds: Rect;
+  wallColliders: Rect[];
   floorBounds: Rect;
   visualBounds: Rect;
   floors: WorldSprite[];
@@ -35,29 +39,65 @@ export interface World {
   objects: WorldObject[];
 }
 
-export function createWorld(): World {
+export function createWorld(
+  door: DoorConfiguration = { state: 'closed' },
+): World {
   const width = COLUMNS * TILE_SIZE;
   const height = ROWS * TILE_SIZE;
   // Explicit inner wall faces in world coordinates; PNG padding is not collision.
   const left = 96;
-  const top = 112;
+  const top = 248;
   const right = (COLUMNS - 1) * TILE_SIZE + 40;
-  const bottom = (ROWS - 1) * TILE_SIZE + 16;
+  const bottom = (ROWS - 2) * TILE_SIZE + 8;
   const bounds = {
     x: left,
     y: top,
     width: right - left,
     height: bottom - top,
   };
+  if (door.state === 'open') {
+    const connected = door.connectedBounds;
+    if (
+      !Object.values(connected).every(Number.isFinite) ||
+      connected.x > left ||
+      connected.y >= 0 ||
+      connected.x + connected.width < right ||
+      connected.y + connected.height < bottom
+    ) {
+      throw new Error(
+        'An open perimeter door requires bounds for a connected room north of the kitchen',
+      );
+    }
+  }
+  // The open leaf ends at x=604; the opposite jamb starts at x=688.
+  // These explicit passage/collision coordinates are not PNG rectangles.
+  const passageLeft = 604;
+  const passageRight = 688;
+  const wallColliders: Rect[] = [
+    { x: 40, y: 0, width: left - 40, height },
+    { x: right, y: 0, width: 56, height },
+    { x: left, y: 0, width: passageLeft - left, height: top },
+    { x: passageRight, y: 0, width: right - passageRight, height: top },
+    { x: left, y: bottom, width: right - left, height: height - bottom },
+  ];
+  if (door.state !== 'open') {
+    wallColliders.push({
+      x: passageLeft,
+      y: 0,
+      width: passageRight - passageLeft,
+      height: top,
+    });
+  }
   const world: World = {
     width,
     height,
-    bounds,
+    bounds: door.state === 'open' ? { ...door.connectedBounds } : bounds,
+    wallColliders,
     floorBounds: {
       x: TILE_SIZE / 2,
-      y: TILE_SIZE / 2,
+      y: TILE_SIZE,
       width: width - TILE_SIZE,
-      height: height - TILE_SIZE,
+      height: height - 2 * TILE_SIZE,
     },
     visualBounds: { x: 0, y: 0, width, height },
     floors: [],
@@ -98,6 +138,8 @@ export function createWorld(): World {
     asset: StructuralAsset,
     column: number,
     row: number,
+    columns: number,
+    rows: number,
   ): WorldSprite => ({
     asset: asset.path,
     x: column * TILE_SIZE,
@@ -107,41 +149,46 @@ export function createWorld(): World {
     footprint: {
       x: column * TILE_SIZE,
       y: row * TILE_SIZE,
-      width: asset.width,
-      height: asset.height,
+      width: columns * TILE_SIZE,
+      height: rows * TILE_SIZE,
     },
   });
   const doorway = { column: 4, row: 0 };
+  const doorAsset = {
+    closed: structuralWalls.doorClosed,
+    ajar: structuralWalls.doorAjar,
+    open: structuralWalls.doorOpen,
+  }[door.state];
   world.structures.push(
-    structure(structuralWalls.topLeft, 0, 0),
-    structure(structuralWalls.horizontalSingle, 1, 0),
-    structure(structuralWalls.windowHorizontal, 2, 0),
-    structure(structuralWalls.doorway, doorway.column, doorway.row),
-    structure(structuralWalls.doorClosed, doorway.column, doorway.row),
-    structure(structuralWalls.horizontalSingle, 6, 0),
-    structure(structuralWalls.windowHorizontal, 7, 0),
-    structure(structuralWalls.topRight, COLUMNS - 1, 0),
+    structure(structuralWalls.topLeft, 0, 0, 1, 2),
+    structure(structuralWalls.horizontalSingle, 1, 0, 1, 2),
+    structure(structuralWalls.windowHorizontal, 2, 0, 2, 2),
+    structure(structuralWalls.doorway, doorway.column, doorway.row, 2, 2),
+    structure(doorAsset, doorway.column, doorway.row, 0, 0),
+    structure(structuralWalls.horizontalSingle, 6, 0, 1, 2),
+    structure(structuralWalls.windowHorizontal, 7, 0, 2, 2),
+    structure(structuralWalls.topRight, COLUMNS - 1, 0, 1, 2),
   );
   for (const column of [0, COLUMNS - 1]) {
     world.structures.push(
-      structure(structuralWalls.vertical, column, 1),
-      structure(structuralWalls.vertical, column, 3),
-      structure(structuralWalls.verticalSingle, column, 5),
+      structure(structuralWalls.vertical, column, 2, 1, 2),
+      structure(structuralWalls.windowVertical, column, 4, 1, 2),
+      structure(structuralWalls.verticalSingle, column, 6, 1, 1),
     );
   }
   world.foreground.push(
-    structure(structuralWalls.bottomLeft, 0, ROWS - 1),
-    structure(structuralWalls.bottomRight, COLUMNS - 1, ROWS - 1),
+    structure(structuralWalls.bottomLeft, 0, ROWS - 2, 1, 2),
+    structure(structuralWalls.bottomRight, COLUMNS - 1, ROWS - 2, 1, 2),
   );
   for (let column = 1; column < COLUMNS - 1; column += 2) {
     world.foreground.push(
-      structure(structuralWalls.horizontal, column, ROWS - 1),
+      structure(structuralWalls.horizontal, column, ROWS - 2, 2, 2),
     );
   }
   world.structures.push(tile(environment.clock, 6, 0));
-  world.floors.push(tile(environment.mat, 4, 1));
+  world.floors.push(tile(environment.mat, 4, 2));
   for (const column of [1, COLUMNS - 2]) {
-    const plant = tile(environment.plant, column, 1);
+    const plant = tile(environment.plant, column, 2);
     world.objects.push({
       ...plant,
       depth: plant.y + 103,

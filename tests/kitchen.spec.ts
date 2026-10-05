@@ -213,7 +213,7 @@ test('the production build works mounted under a GitHub Pages project path', asy
   expect(unexpectedPaths).toEqual([]);
 });
 
-test('loads only the final structural kit and renders matching walls, corners, doorway, and windows', async ({
+test('loads only the tall structural kit and renders matching walls, corners, doorway, and windows', async ({
   page,
 }) => {
   const imageRequests: string[] = [];
@@ -228,7 +228,7 @@ test('loads only the final structural kit and renders matching walls, corners, d
   }
   for (const path of imageRequests) {
     expect(path).not.toMatch(
-      /Wall Kit v2|Empty Kitchen\/(?:Walls|Windows|Openings|Transitions)\//,
+      /Wall Kit (?:v2|Final)|Empty Kitchen\/(?:Walls|Windows|Openings|Transitions)\//,
     );
   }
   const { world } = await snapshot(page);
@@ -243,21 +243,21 @@ test('loads only the final structural kit and renders matching walls, corners, d
     {
       asset: structuralWalls.horizontal,
       x: 256,
-      y: 832,
+      y: 960,
       sourceX: 128,
       sourceY: 64,
     },
     {
       asset: structuralWalls.vertical,
       x: 64,
-      y: 512,
+      y: 384,
       sourceX: 64,
       sourceY: 128,
     },
     {
       asset: structuralWalls.vertical,
       x: 1216,
-      y: 512,
+      y: 384,
       sourceX: 64,
       sourceY: 128,
     },
@@ -272,14 +272,14 @@ test('loads only the final structural kit and renders matching walls, corners, d
     {
       asset: structuralWalls.bottomLeft,
       x: 64,
-      y: 832,
+      y: 960,
       sourceX: 64,
       sourceY: 64,
     },
     {
       asset: structuralWalls.bottomRight,
       x: 1216,
-      y: 832,
+      y: 960,
       sourceX: 64,
       sourceY: 64,
     },
@@ -287,9 +287,9 @@ test('loads only the final structural kit and renders matching walls, corners, d
     {
       asset: structuralWalls.doorClosed,
       x: 640,
-      y: 80,
+      y: 160,
       sourceX: 128,
-      sourceY: 80,
+      sourceY: 160,
     },
     {
       asset: structuralWalls.windowHorizontal,
@@ -297,6 +297,20 @@ test('loads only the final structural kit and renders matching walls, corners, d
       y: 72,
       sourceX: 110,
       sourceY: 72,
+    },
+    {
+      asset: structuralWalls.windowVertical,
+      x: 84,
+      y: 640,
+      sourceX: 84,
+      sourceY: 128,
+    },
+    {
+      asset: structuralWalls.windowVertical,
+      x: 1236,
+      y: 640,
+      sourceX: 84,
+      sourceY: 128,
     },
     {
       asset: structuralWalls.windowHorizontal,
@@ -390,12 +404,12 @@ test('loads only the final structural kit and renders matching walls, corners, d
 test('a missing structural wall reports the actual asset failure', async ({
   page,
 }) => {
-  await page.route('**/cookup-structural-wall-vertical-128x256.png', (route) =>
+  await page.route('**/cookup-tall-wall-vertical-128x256.png', (route) =>
     route.abort(),
   );
   await page.goto('/');
   await expect(page.locator('#error')).toContainText(
-    'cookup-structural-wall-vertical-128x256.png',
+    'cookup-tall-wall-vertical-128x256.png',
   );
   await expect(page.locator('canvas')).toHaveAttribute('data-status', 'error');
 });

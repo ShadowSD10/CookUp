@@ -3,10 +3,10 @@ import { environment, structuralWalls } from '../assets/manifest';
 import { PLAYER_CONFIG } from '../core/config';
 import { fitCamera } from '../rendering/camera';
 import { movePlayer } from '../systems/movement';
-import { createGame } from './state';
+import { createGame, updateGame } from './state';
 import { createWorld, TILE_SIZE } from './world';
 
-describe('final structural wall layout', () => {
+describe('tall structural wall layout', () => {
   const world = createWorld();
   const registry = new Map(
     Object.values(structuralWalls).map((asset) => [asset.path, asset]),
@@ -14,33 +14,36 @@ describe('final structural wall layout', () => {
   const walls = [...world.structures, ...world.foreground].filter((sprite) =>
     registry.has(sprite.asset),
   );
-  const perimeter = walls.filter(
-    (sprite) => sprite.asset !== structuralWalls.doorClosed.path,
-  );
+  const perimeter = walls.filter((sprite) => sprite.footprint.width > 0);
 
-  it('preserves the grid and decorations with explicit bounds matching the final inner faces', () => {
+  it('preserves the grid, scale, and nearly the same clear floor area with two-row walls', () => {
     expect(TILE_SIZE).toBe(128);
-    expect([world.width, world.height]).toEqual([1280, 896]);
-    expect(world.bounds).toEqual({ x: 96, y: 112, width: 1096, height: 672 });
+    expect([world.width, world.height]).toEqual([1280, 1152]);
+    expect(world.bounds).toEqual({ x: 96, y: 248, width: 1096, height: 656 });
+    expect(
+      (world.bounds.width * world.bounds.height) / (1096 * 672),
+    ).toBeGreaterThan(0.97);
+    expect(PLAYER_CONFIG.renderScale).toBe(0.5);
+    expect(240 / (256 * PLAYER_CONFIG.renderScale)).toBe(1.875);
     expect(world.visualBounds).toEqual({
       x: 0,
       y: 0,
       width: 1280,
-      height: 896,
+      height: 1152,
     });
     expect(world.floorBounds).toEqual({
       x: 64,
-      y: 64,
+      y: 128,
       width: 1152,
-      height: 768,
+      height: 896,
     });
     expect(
       world.floors.filter((sprite) => sprite.asset !== environment.mat),
-    ).toHaveLength(70);
+    ).toHaveLength(90);
     expect(world.objects).toHaveLength(2);
   });
 
-  it('uses only final structural assets with native dimensions and exact grid anchors', () => {
+  it('uses only tall structural assets with native dimensions and exact grid anchors', () => {
     expect(walls).toHaveLength(20);
     for (const wall of walls) {
       const asset = registry.get(wall.asset);
@@ -50,11 +53,12 @@ describe('final structural wall layout', () => {
       expect(wall.height).toBe(asset.height);
       expect(wall.x % TILE_SIZE).toBe(0);
       expect(wall.y % TILE_SIZE).toBe(0);
+      const overlay = asset.connectors === '';
       expect(wall.footprint).toEqual({
         x: wall.x,
         y: wall.y,
-        width: wall.width,
-        height: wall.height,
+        width: overlay ? 0 : wall.width,
+        height: overlay ? 0 : wall.height,
       });
       expect(wall).not.toHaveProperty('clip');
       expect(wall).not.toHaveProperty('rotation');
@@ -71,13 +75,13 @@ describe('final structural wall layout', () => {
       ...world.objects,
     ]) {
       expect(sprite.asset).not.toMatch(
-        /Wall Kit v2|Empty Kitchen\/(?:Walls|Windows|Openings|Transitions)\//,
+        /Wall Kit (?:v2|Final)|Empty Kitchen\/(?:Walls|Windows|Openings|Transitions)\//,
       );
     }
   });
 
   it('covers each perimeter cell exactly once without overlaps, gaps, or interior structural tiles', () => {
-    for (let row = 0; row < 7; row++) {
+    for (let row = 0; row < 9; row++) {
       for (let column = 0; column < 10; column++) {
         const x = column * TILE_SIZE;
         const y = row * TILE_SIZE;
@@ -88,7 +92,7 @@ describe('final structural wall layout', () => {
             y >= sprite.y &&
             y < sprite.y + sprite.height,
         );
-        const border = row === 0 || row === 6 || column === 0 || column === 9;
+        const border = row < 2 || row >= 7 || column === 0 || column === 9;
         expect(covering, `Cell ${column},${row}`).toHaveLength(border ? 1 : 0);
       }
     }
@@ -103,47 +107,199 @@ describe('final structural wall layout', () => {
     ).toBe(false);
   });
 
-  it('uses each directional corner in its intended location and keeps the south wall in front', () => {
+  it('uses authored corners at two-row spacing and keeps the south wall clear of chef silhouettes', () => {
     for (const [asset, x, y] of [
       [structuralWalls.topLeft.path, 0, 0],
       [structuralWalls.topRight.path, 1152, 0],
-      [structuralWalls.bottomLeft.path, 0, 768],
-      [structuralWalls.bottomRight.path, 1152, 768],
+      [structuralWalls.bottomLeft.path, 0, 896],
+      [structuralWalls.bottomRight.path, 1152, 896],
     ] as const) {
       expect(walls.filter((wall) => wall.asset === asset)).toEqual([
-        expect.objectContaining({ asset, x, y, width: 128, height: 128 }),
+        expect.objectContaining({ asset, x, y, width: 128, height: 256 }),
       ]);
     }
     expect(world.foreground).toHaveLength(6);
-    expect(world.foreground.every((wall) => wall.y === 768)).toBe(true);
+    expect(world.foreground.every((wall) => wall.y === 896)).toBe(true);
+    const southernFeet =
+      world.bounds.y + world.bounds.height - PLAYER_CONFIG.collisionHeight / 2;
+    const spriteBottom =
+      southernFeet +
+      256 * PLAYER_CONFIG.renderScale * (1 - PLAYER_CONFIG.anchorY);
+    expect(spriteBottom).toBeLessThan(896 + 8);
   });
 
-  it('replaces wall slots with final windows and shares a doorway/closed-door anchor', () => {
+  it('replaces wall slots with tall windows and gives the door overlay no additional occupied cells', () => {
     const doorway = walls.find(
       (wall) => wall.asset === structuralWalls.doorway.path,
     );
     const door = walls.find(
       (wall) => wall.asset === structuralWalls.doorClosed.path,
     );
-    expect(doorway).toMatchObject({ x: 512, y: 0, width: 256, height: 128 });
+    expect(doorway).toMatchObject({ x: 512, y: 0, width: 256, height: 256 });
     expect(door).toEqual({
       ...doorway,
       asset: structuralWalls.doorClosed.path,
+      footprint: { x: 512, y: 0, width: 0, height: 0 },
     });
     expect(
       walls
         .filter((wall) => wall.asset === structuralWalls.windowHorizontal.path)
         .map(({ x, y, width, height }) => ({ x, y, width, height })),
     ).toEqual([
-      { x: 256, y: 0, width: 256, height: 128 },
-      { x: 896, y: 0, width: 256, height: 128 },
+      { x: 256, y: 0, width: 256, height: 256 },
+      { x: 896, y: 0, width: 256, height: 256 },
+    ]);
+    expect(
+      walls
+        .filter((wall) => wall.asset === structuralWalls.windowVertical.path)
+        .map(({ x, y }) => ({ x, y })),
+    ).toEqual([
+      { x: 0, y: 512 },
+      { x: 1152, y: 512 },
     ]);
     for (const state of [
       structuralWalls.doorClosed,
       structuralWalls.doorAjar,
       structuralWalls.doorOpen,
     ]) {
-      expect([state.width, state.height]).toEqual([256, 128]);
+      expect([state.width, state.height]).toEqual([256, 256]);
+    }
+  });
+
+  it('connects every authored port to exactly one matching port without rotation', () => {
+    for (const wall of perimeter) {
+      const ports = registry.get(wall.asset)?.connectors;
+      if (!ports) throw new Error('Expected structural ports');
+      for (const port of ports) {
+        const opposite = { E: 'W', W: 'E', N: 'S', S: 'N' }[port];
+        const matching = perimeter.filter((neighbor) => {
+          if (
+            !opposite ||
+            !registry.get(neighbor.asset)?.connectors.includes(opposite)
+          )
+            return false;
+          if (port === 'E' || port === 'W') {
+            return (
+              neighbor.y === wall.y &&
+              neighbor.height === wall.height &&
+              (port === 'E'
+                ? neighbor.x === wall.x + wall.width
+                : neighbor.x + neighbor.width === wall.x)
+            );
+          }
+          return (
+            neighbor.x === wall.x &&
+            neighbor.width === wall.width &&
+            (port === 'S'
+              ? neighbor.y === wall.y + wall.height
+              : neighbor.y + neighbor.height === wall.y)
+          );
+        });
+        expect(matching, `${wall.asset} ${port}`).toHaveLength(1);
+      }
+    }
+  });
+
+  it.each(['closed', 'ajar'] as const)(
+    'keeps the %s door blocked and draws exactly one matching overlay',
+    (state) => {
+      const game = createGame();
+      game.world = createWorld({ state });
+      // Exercise the door collider itself, not just the default room clamp.
+      game.world.bounds = { x: 96, y: -512, width: 1096, height: 1416 };
+      const overlays = game.world.structures.filter(
+        (sprite) => sprite.footprint.width === 0,
+      );
+      expect(overlays).toHaveLength(1);
+      expect(overlays[0]).toMatchObject({
+        x: 512,
+        y: 0,
+        width: 256,
+        height: 256,
+        asset:
+          state === 'closed'
+            ? structuralWalls.doorClosed.path
+            : structuralWalls.doorAjar.path,
+      });
+      for (const player of game.players) {
+        player.x = 640;
+        player.y = 400;
+      }
+      updateGame(
+        game,
+        [
+          { x: 0, y: -1, run: true },
+          { x: 0, y: -1, run: true },
+        ],
+        2,
+      );
+      for (const player of game.players) expect(player.y).toBe(260);
+    },
+  );
+
+  it('allows both chefs through an open doorway into supplied connected-room bounds and back, but blocks the jambs', () => {
+    const game = createGame();
+    game.world = createWorld({
+      state: 'open',
+      connectedBounds: { x: 96, y: -512, width: 1096, height: 1416 },
+    });
+    const overlays = game.world.structures.filter(
+      (sprite) => sprite.footprint.width === 0,
+    );
+    expect(overlays).toHaveLength(1);
+    expect(overlays[0]).toMatchObject({
+      asset: structuralWalls.doorOpen.path,
+      x: 512,
+      y: 0,
+      width: 256,
+      height: 256,
+    });
+    for (const player of game.players) {
+      player.x = 646;
+      player.y = 400;
+    }
+    for (let i = 0; i < 120; i++)
+      updateGame(
+        game,
+        [
+          { x: 0, y: -1, run: true },
+          { x: 0, y: -1, run: true },
+        ],
+        1 / 120,
+      );
+    for (const player of game.players) expect(player.y).toBeCloseTo(-50);
+    for (let i = 0; i < 120; i++)
+      updateGame(
+        game,
+        [
+          { x: 0, y: 1, run: true },
+          { x: 0, y: 1, run: true },
+        ],
+        1 / 120,
+      );
+    for (const player of game.players) expect(player.y).toBeCloseTo(400);
+    game.players[0].x = 603;
+    game.players[1].x = 689;
+    updateGame(
+      game,
+      [
+        { x: 0, y: -1, run: true },
+        { x: 0, y: -1, run: true },
+      ],
+      2,
+    );
+    for (const player of game.players) expect(player.y).toBe(260);
+  });
+
+  it('rejects open-door bounds that would create an invisible barrier across the passage', () => {
+    for (const connectedBounds of [
+      world.bounds,
+      { x: 96, y: -128, width: 100, height: 1032 },
+      { x: 96, y: NaN, width: 1096, height: 1032 },
+    ]) {
+      expect(() => createWorld({ state: 'open', connectedBounds })).toThrow(
+        'connected room',
+      );
     }
   });
 
@@ -153,20 +309,17 @@ describe('final structural wall layout', () => {
       const state = createGame();
       for (const player of state.players) {
         player.x = side === 'west' ? 113 : side === 'east' ? 1175 : 640;
-        player.y = side === 'north' ? 124 : side === 'south' ? 772 : 448;
+        player.y = side === 'north' ? 260 : side === 'south' ? 892 : 576;
         const before = { x: player.x, y: player.y };
         const input = {
           x: side === 'west' ? -1 : 1,
           y: side === 'north' ? -1 : 1,
           run: true,
         };
-        movePlayer(
-          player,
-          input,
-          0.1,
-          state.world.bounds,
-          state.world.objects.map((object) => object.collider),
-        );
+        movePlayer(player, input, 0.1, state.world.bounds, [
+          ...state.world.wallColliders,
+          ...state.world.objects.map((object) => object.collider),
+        ]);
         if (side === 'north' || side === 'south') {
           expect(player.y).toBe(before.y);
           expect(player.x).toBeGreaterThan(before.x);
@@ -184,7 +337,7 @@ describe('final structural wall layout', () => {
     [375, 300],
     [600, 1200],
   ])(
-    'frames all final wall pieces and north-wall labels at %i by %i',
+    'frames all tall wall pieces and north-wall labels at %i by %i',
     (width, height) => {
       const camera = fitCamera(
         width,

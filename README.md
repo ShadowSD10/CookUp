@@ -65,27 +65,49 @@ clock, and plant images. Walls and plant bases block movement. The door is
 closed; there is no exit interaction. Chefs can pass through each other.
 Both players stay visible using a camera that fits the whole room.
 
-The entire perimeter uses **Kitchen Structural Wall Kit Final**, registered in
-`src/assets/manifest.ts`. Horizontal pieces are 256 × 128, vertical pieces are
-128 × 256, and single-cell fillers/corners are 128 × 128. Every structural
-top-left anchor is on the 128-unit grid, with native size and orientation:
-no runtime rotation, stretching, wall clipping, or v2/legacy structural overlays.
-The 10 × 7 world remains 1280 × 896 units.
+The entire perimeter uses **Kitchen Structural Wall Kit Tall**, registered in
+`src/assets/manifest.ts`. Its original metadata and artwork are preserved in
+`public/assets/Spirits/Environment/Kitchen Structural Wall Kit Tall/`.
+Environment scale is **1.0** and chef scale remains **0.5**. Horizontal walls
+are 256 × 256, vertical walls are 128 × 256, and corners/caps are 128 × 256.
+Visible horizontal architecture is 240 units high, versus a 128-unit chef frame;
+visible side-wall width is only 56 units. All structural top-left anchors remain
+on the **128-unit grid**, with zero offsets, native proportions, and no rotation,
+stretching, wall clipping, or old structural overlays.
+
+The approved room expansion is **10 × 9 cells / 1280 × 1152 units**. North
+modules occupy rows 0–1, south modules rows 7–8. Side runs begin at row 2,
+with two-row modules at rows 2 and 4 and a one-row vertical filler at row 6.
+This preserves over 97% of the previous clear floor area instead of losing two
+interior rows. Floor tiling is unchanged; the mat and plants move down one row.
 
 Matching directional corners close the perimeter. The north doorway frame and
-closed door share the same two-cell anchor; north windows replace wall slots
-with the final horizontal window-wall rather than overlaying an old window.
-All 18 kit images are registered and loaded. Open/ajar doors are available visual
-alternatives, not gameplay. Caps are not placed because this room has no exposed
-wall ends; the vertical window is available without adding new side windows to
-the existing layout.
+closed door share the same 2 × 2 anchor at cell (4,0). Exactly one door overlay
+is drawn and adds no occupied cells. North windows replace wall slots with tall
+horizontal window-walls; side windows use the authored vertical variant at row 4.
+All **26 PNGs** are registered and loaded, including separate inside corners,
+directional caps, and both orientations of door frames/states. Unneeded caps,
+inside corners, and vertical doors are not placed in this rectangular room.
 
-Collision remains explicitly defined, independent of PNG dimensions: the final
-inner faces bound x=96..1192 and y=112..784. Floor tiles extend underneath the
-opaque wall bands to avoid gaps at the matching corners. The existing camera fits
-the world plus north-label headroom, without oversized exterior-wall padding.
-Original floor/decor images are retained, but old walls, corners, transitions,
-doorway, and windows are not registered or rendered.
+Collision remains explicitly defined, independent of PNG dimensions: the playable
+inner faces bound x=96..1192 and y=248..904. Foot colliders and movement speeds
+are unchanged. The south wall begins beyond the chefs' sprite bottoms, so the
+existing foreground pass does not hide them; north walls stay behind the chefs.
+Floor tiles extend under opaque wall bands to prevent seams.
+
+The agreed default is a **closed perimeter door**, with no door interaction.
+`createWorld` also supports closed/ajar/open configurations. Open requires explicit
+`connectedBounds` containing the kitchen and extending north into a future room:
+it removes the door blocker and leaves a real passage at x=604..688, rather than
+retaining an invisible room-edge wall. Unit tests traverse it in both directions
+with both chefs. No connected room or door gameplay is enabled in the prototype;
+the default closed room keeps both players enclosed.
+
+The existing fitted camera, responsive canvas, and fullscreen implementation are
+unchanged. Original floor/decor images remain active, but Final/v2/legacy walls,
+corners, transitions, doorways, and windows are not registered or rendered.
+Small mobile screens necessarily show smaller chefs when fitting the entire room;
+there are still no touch controls.
 
 Animation definitions support source dimensions, frame count (via the frame
 array), speed, looping, and current frame. Both chefs use the existing eight-frame
@@ -99,7 +121,8 @@ The copied artwork actually lives in **`public/assets/Spirits/`**, not the
 `public/assets/sprites/` path from the initial brief. Original names, capitalization,
 spaces, and image contents are preserved, including the existing deprecated sample
 folder, which is not loaded. The manifest encodes URL spaces and uses Vite's
-deployment base. PNG paths/dimensions are checked by tests.
+deployment base. PNG paths/dimensions, supplied SHA-256 hashes, native scale,
+anchors, and connectors are checked against the tall kit's `assets.json` by tests.
 
 Controls, speed, scale, and collision sizes are centralized in
 `src/core/config.ts`. Map layout and object colliders live in `src/game/world.ts`.
