@@ -66,8 +66,11 @@ closed; there is no exit interaction. Chefs can pass through each other.
 Both players stay visible using a camera that fits the whole room.
 
 The entire perimeter uses **Kitchen Structural Wall Kit Tall**, registered in
-`src/assets/manifest.ts`. Its original metadata and artwork are preserved in
-`public/assets/Spirits/Environment/Kitchen Structural Wall Kit Tall/`.
+`src/assets/manifest.ts`. Its artwork is organized by category under
+`public/assets/Spirits/environment/structure/`, with walls in `walls/tall/`
+and matching `doors/tall/`, `windows/tall/`, `corners/tall/`, and `caps/tall/`.
+The kit's `assets.json` and README live at the structure root; only their folder
+references changed during migration, not the artwork or authored geometry.
 Environment scale is **1.0** and chef scale remains **0.5**. Horizontal walls
 are 256 × 256, vertical walls are 128 × 256, and corners/caps are 128 × 256.
 Visible horizontal architecture is 240 units high, versus a 128-unit chef frame;
@@ -132,12 +135,78 @@ time-based at normal refresh rates, with intentional slowdown below 20 FPS.
 
 ### Assets
 
-The copied artwork actually lives in **`public/assets/Spirits/`**, not the
-`public/assets/sprites/` path from the initial brief. Original names, capitalization,
-spaces, and image contents are preserved, including the existing deprecated sample
-folder, which is not loaded. The manifest encodes URL spaces and uses Vite's
-deployment base. PNG paths/dimensions, supplied SHA-256 hashes, native scale,
-anchors, and connectors are checked against the tall kit's `assets.json` by tests.
+The canonical root remains **`public/assets/Spirits/`** (including that spelling
+and capitalization). All active family folders below it are lowercase:
+
+```text
+Spirits/
+  characters/
+    male-cook/
+      idle/
+      walk/
+      run/
+      legacy/samples/
+    female-cook/
+      idle/
+      walk/
+      run/
+  environment/
+    structure/
+      README.md
+      assets.json
+      walls/tall/
+      doors/tall/
+      windows/tall/
+      corners/tall/
+      caps/tall/
+      floors/
+        corners/
+        edges/
+        variations/
+    decorations/
+    legacy/
+      empty-kitchen/
+      wall-kit-final/
+      wall-kit-v2/
+    furniture/
+      counters/
+      tables/
+      islands/
+    stations/
+      prep/
+      cooking/
+      sink/
+      serving/
+    appliances/refrigerator/
+```
+
+Each character has 8 idle, 64 walk, and 64 run frames. Direction names stay in
+the original filenames, not separate direction folders. Logical character,
+animation, and environment IDs are unchanged. The manifest remains the sole
+runtime registry; world/layout/renderer code does not contain asset paths.
+The favicon uses the canonical male idle frame as well.
+
+All **364 PNGs** and the original reference SVG were moved without changing
+their filenames or bytes. The 17 floor tiles retain their own edge/corner/variation
+categories; the four existing clock, plant, mat, and light assets justify the
+`decorations` category. Only three floor variants and three decorations are active.
+All 26 Tall images load; not every registered variant is placed in the current room.
+
+The 23 obsolete short structural tiles, 18 Final-kit images, and two v2 images
+are retained under `environment/legacy/`, preserving their original internal
+folder names for reference. The two deprecated male PNGs and SVG live under
+`characters/male-cook/legacy/samples/`. None are loaded by the runtime.
+Do not remove these reference assets without a separate reviewed cleanup.
+
+Future equipment destinations contain only `.gitkeep` files so Git retains the
+requested folders. **Kitchen Equipment Kit v1 has not been added.** No ingredients,
+food, or unrelated future categories have been created.
+
+The loader continues to encode URLs and honor Vite's deployment base. Tests check
+exact filesystem case, unique active paths, all original artwork hashes, clip
+timings, the supplied tall metadata, browser rendering, and GitHub Pages URLs.
+When intentionally adding or changing artwork in a future milestone, update the
+documented inventory baseline test as part of that reviewed change.
 
 Controls, speed, scale, and collision sizes are centralized in
 `src/core/config.ts`. Map layout and object colliders live in `src/game/world.ts`.

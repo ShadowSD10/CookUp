@@ -1,5 +1,199 @@
 # CookUp — Session Report
 
+## October 5, 2026 — Canonical asset-folder migration
+
+**Outcome:** Safely reorganized the existing assets under the unchanged canonical
+root **`public/assets/Spirits/`**. All runtime paths, favicon, tests, and current
+documentation use the new locations. The running kitchen and both chefs were
+opened and visually inspected after migration. No equipment was integrated and
+no gameplay or artwork changed.
+
+### Inventory and previous structure
+
+Started with a clean `main` at `d61bf17`. Enumerated every directory and file,
+read every PNG header, and recorded a one-to-one old/new path map and SHA-256
+hashes before moving anything. The inventory contained:
+
+- **364 PNGs**, one existing deprecated SVG, and the Tall README/JSON:
+  **367 files moved** in total.
+- Two character families, each with 136 frames: 8 idle, 64 walk, 64 run.
+- 44 original Empty Kitchen PNGs: 17 floors, 4 decorations, and 23 obsolete
+  structural pieces.
+- 18 Final-kit, 2 v2-kit, and 26 Tall-kit PNGs.
+- Two additional deprecated male sample PNGs and their original SVG.
+
+The previous family roots were `Male Cook/`, `Female Cook/`, and `Environment/`
+under `Spirits/`. Each character had separate `walk-direction` and `run-direction`
+folders. Environment kits were separated into `Empty Kitchen/`,
+`Kitchen Structural Wall Kit Final/`, `Kitchen Structural Wall Kit v2/`,
+and `Kitchen Structural Wall Kit Tall/`.
+
+Inspected the current manifest, loader, animation definitions, world composition,
+renderer, tests, and HTML. Searched all tracked text files for every inventoried
+filename as well as old path prefixes and fragments. The HTML favicon was an
+additional reference outside the runtime manifest.
+
+### Canonical structure and every moved family
+
+The user selected **category-first Tall nesting**. Paths below are relative to
+`public/assets/Spirits/`; no PNG filename changed.
+
+| Previous family                                                 | Canonical destination                                                |    Moved files |
+| --------------------------------------------------------------- | -------------------------------------------------------------------- | -------------: |
+| Male Cook idle / eight walk directions / eight run directions   | `characters/male-cook/idle/`, `walk/`, `run/`                        |       136 PNGs |
+| Female Cook idle / eight walk directions / eight run directions | `characters/female-cook/idle/`, `walk/`, `run/`                      |       136 PNGs |
+| Male Cook deprecated samples                                    | `characters/male-cook/legacy/samples/`                               | 2 PNGs + 1 SVG |
+| Tall Walls                                                      | `environment/structure/walls/tall/`                                  |         4 PNGs |
+| Tall Doorway / states                                           | `environment/structure/doors/tall/`                                  |         8 PNGs |
+| Tall Windows                                                    | `environment/structure/windows/tall/`                                |         2 PNGs |
+| Tall Corners                                                    | `environment/structure/corners/tall/`                                |         8 PNGs |
+| Tall Caps                                                       | `environment/structure/caps/tall/`                                   |         4 PNGs |
+| Tall kit metadata                                               | `environment/structure/README.md`, `assets.json`                     |        2 files |
+| Empty Kitchen Floor, Corners, Edges, Variations                 | `environment/structure/floors/`, `corners/`, `edges/`, `variations/` |        17 PNGs |
+| Empty Kitchen Decor: clock, plant, mat, wall light              | `environment/decorations/`                                           |         4 PNGs |
+| Empty Kitchen old walls, openings, transitions, window          | `environment/legacy/empty-kitchen/`                                  |        23 PNGs |
+| Final kit                                                       | `environment/legacy/wall-kit-final/`                                 |        18 PNGs |
+| v2 kit                                                          | `environment/legacy/wall-kit-v2/`                                    |         2 PNGs |
+
+Characters retain their direction-bearing filenames, so all walk frames can
+share `walk/` and all run frames can share `run/` without collisions.
+The original sample art was visually inspected and correctly retained as
+male-character reference material, not active animation frames.
+
+Floors retain their own subcategories, rather than being misclassified as
+furniture or tall-wall corners. The existing four decorative images justify the
+`decorations/` category; no speculative decoration assets were created.
+Only the same three floors and three decorations remain in the active manifest.
+Fourteen spare floor images and the unused wall light remain available.
+
+Prepared these eight future destinations with `.gitkeep` placeholders only:
+
+```text
+environment/furniture/counters/
+environment/furniture/tables/
+environment/furniture/islands/
+environment/stations/prep/
+environment/stations/cooking/
+environment/stations/sink/
+environment/stations/serving/
+environment/appliances/refrigerator/
+```
+
+No Kitchen Equipment Kit v1, food, or ingredient files were added.
+Git cannot retain empty directories without placeholders. Obsolete empty source
+directories were removed individually; no artwork or reference asset was deleted.
+
+### Safe moves, image identity, and casing
+
+Used `git mv` for all 367 existing files. Git detects **all 364 PNGs as R100
+renames**, and post-migration SHA-256 verification confirms all **365 artwork
+files** (PNGs plus SVG) are byte-for-byte unchanged. Dimensions, transparency,
+pixel contents, and PNG filenames are preserved.
+
+Windows initially retained the original uppercase `Environment` directory name
+and denied a direct case-only rename. After user-assisted retries did not release
+that operation, moved its children temporarily, removed only the verified-empty
+parent, created lowercase `environment`, and moved the same contents back.
+Exact filesystem-case tests now pass, protecting case-sensitive GitHub Pages
+deployment as well as local Windows loading.
+
+The pre-migration path-independent artwork fingerprint is:
+
+```text
+1311dc790b8365f7b11ea758a53740bccce31d026a696c4fe30e8bdff3b5bc20
+```
+
+The asset tests preserve this baseline together with the exact file counts.
+No active asset has a second file with the same basename, and no old-location
+copy remains.
+
+### References and logical identity
+
+- [Manifest](../src/assets/manifest.ts): only filesystem paths changed. All
+  `maleCook` / `femaleCook`, clip names, `environment` keys, and `structuralWalls`
+  keys remain the same. Idle/walk/run FPS, frame order/count, source dimensions,
+  looping, connectors, and asset registration behavior are unchanged.
+- [HTML](../index.html): favicon now uses the canonical male idle frame.
+- [Manifest tests](../src/assets/manifest.test.ts): canonical paths, exact
+  filesystem case, 304 unique active PNG paths, 364 original PNGs plus SVG,
+  unchanged hashes, character motion folders/timing, Tall metadata, and existing
+  Final-kit replacement references.
+- [World tests](../src/game/world.test.ts) and [browser tests](../tests/kitchen.spec.ts):
+  updated obsolete-path guards to exclude all legacy directories and old active
+  locations. Browser coverage now checks every registered image request and all
+  eight walk/run directions for both chefs.
+- [Tall metadata](../public/assets/Spirits/environment/structure/assets.json):
+  only the 26 `file` paths were rebased relative to the new structure root.
+  PNG hashes and all authored geometry remain unchanged.
+- [Tall README](../public/assets/Spirits/environment/structure/README.md):
+  inventory paths now match the new categories. `replacesFinalKitFile` fields
+  retain the original relative reference paths, explicitly rooted at
+  `environment/legacy/wall-kit-final/`; tests resolve every nonempty mapping.
+- [Project README](../README.md): documents the full canonical tree, legacy
+  policy, future destinations, and migration invariants.
+
+The asset loader remains unchanged and consumes the same central registry.
+World/layout definitions and the renderer already use logical manifest references,
+so no raw paths needed moving there. Verified there are **no changes** to game
+state, layout, collision, input, movement, animations, player configuration,
+camera, renderer, fullscreen, CSS, or main-loop implementation.
+
+Post-migration repository-wide searches found no obsolete active paths.
+Previous dated report entries retain their original discovery paths as historical
+records, with current-location notes added below; they are not runtime references.
+Human-readable character/kit names are still valid labels, not folder paths.
+
+### Validation
+
+| Check                  | Result                                                                                                    |
+| ---------------------- | --------------------------------------------------------------------------------------------------------- |
+| `npm run typecheck`    | Passed                                                                                                    |
+| `npm run lint`         | Passed                                                                                                    |
+| `npm run format:check` | Passed                                                                                                    |
+| `npm run test`         | 60 tests passed in 4 files                                                                                |
+| `npm run build`        | Passed                                                                                                    |
+| `npm run test:e2e`     | All 18 cases passed: 17 in the full run, then the corrected project-base test passed on its focused rerun |
+
+The first browser run exposed a test-only expectation error: Vite emits a relative
+favicon href, not an absolute `/CookUp/` href. The assertion now resolves that href
+against the page URL and checks the exact canonical project pathname. No loader
+or deployment configuration change was needed.
+
+Existing tests continue to verify source-pixel rendering, tall-wall metadata,
+clock scale, south-wall cutaway/occlusion, collision, movement, resizing,
+fullscreen, load failures, and GitHub Pages relative URLs. Missing-file errors
+continue to identify the actual PNG filename.
+
+### Actual manual browser verification
+
+Opened the migrated **production build** at localhost:4174 and inspected fresh
+1440 × 1000 desktop screenshots. Visually confirmed:
+
+- Both chefs render in idle, walk, and run, including simultaneous movement.
+- Tall north/south/side walls, matching corners, doorway/closed door, both window
+  orientations, floors, plants, mat, and enlarged clock appear unchanged.
+- Both chefs still stop at y=940 and remain partly visible behind the south
+  foreground cutaway. Room dimensions remain 1280 × 1152 and collision bounds
+  remain `{ x:96, y:248, width:1096, height:704 }`.
+- A fresh browser context loaded **all 304 registered PNGs** successfully:
+  **zero HTTP errors, page errors, or obsolete/legacy requests**. The console
+  also contained no errors or warnings.
+- All four migrated directional caps decoded at 128 × 256 and were separately
+  rendered and visually inspected in a temporary browser gallery. They are still
+  intentionally not placed in the closed room, which has no exposed wall ends.
+  No gameplay composition was changed simply to display test assets.
+
+Fresh desktop, walking, running, south-boundary, and cap-gallery screenshots
+were retained in the session artifact directory. The temporary gallery was closed.
+
+### Remaining cleanup recommendations
+
+Keep the Final/v2/short-wall and male sample reference assets until a separately
+approved deletion review; they are no longer active, but preserving them was the
+safe scope for this migration. Their original internal folder names are retained
+inside clearly labeled legacy roots. Unused floors and wall light are also retained.
+There are no known broken paths or migration blockers.
+
 ## October 5, 2026 — Clock, south-wall cutaway, and boundary polish
 
 **Outcome:** Enlarged the original clock, reduced the south facade with an approved
@@ -153,6 +347,11 @@ or overwrite was necessary:
 ```text
 public/assets/Spirits/Environment/Kitchen Structural Wall Kit Tall/
 ```
+
+**Current-location note:** This is the original discovery path. The later
+canonical migration moved the kit to
+[environment/structure](../public/assets/Spirits/environment/structure/),
+using category-specific `tall/` folders.
 
 Integrated all **26 PNGs**, alongside the unchanged supplied README and JSON.
 Verified every actual PNG header dimension and SHA-256 hash against `assets.json`.
@@ -320,6 +519,9 @@ The verified asset directory is:
 ```text
 public/assets/Spirits/Environment/Kitchen Structural Wall Kit Final/
 ```
+
+**Current-location note:** This historical kit is now retained in
+[environment/legacy/wall-kit-final](../public/assets/Spirits/environment/legacy/wall-kit-final/).
 
 All 18 files were found and registered:
 
@@ -644,8 +846,9 @@ kitchen, preserving the grid, player rendering, movement, and collision behavior
 Inspected the repository, original wall assembly, manifest, renderer, camera, and
 tests before editing. The working tree was clean.
 
-The new `public/assets/Spirits/Environment/Kitchen Structural Wall Kit v2/`
-directory contains exactly two PNGs:
+The then-new `public/assets/Spirits/Environment/Kitchen Structural Wall Kit v2/`
+directory contained exactly two PNGs, now retained in
+[environment/legacy/wall-kit-v2](../public/assets/Spirits/environment/legacy/wall-kit-v2/):
 
 | Asset                                          | Verified source dimensions | Nontransparent pixel bounds, inclusive |
 | ---------------------------------------------- | -------------------------- | -------------------------------------- |
@@ -860,8 +1063,11 @@ public/assets/Spirits/
     Empty Kitchen/
 ```
 
-Preserved the existing spelling, capitalization, spaces, filenames, and image
-contents. No original artwork was renamed, edited, or replaced.
+That tree records the original discovery, not the current folders; see the
+canonical migration entry above and the [current asset tree](../README.md#assets).
+At this initial milestone, the existing spelling, capitalization, spaces,
+filenames, and image contents were preserved. No original artwork was renamed,
+edited, or replaced.
 
 Inspection found:
 

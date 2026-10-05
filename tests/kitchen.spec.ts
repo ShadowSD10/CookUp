@@ -3,6 +3,7 @@ import type { GameState } from '../src/game/state';
 import { fitCamera } from '../src/rendering/camera';
 import {
   assetUrl,
+  assetPaths,
   getClip,
   structuralWalls,
   environment,
@@ -146,6 +147,50 @@ test('both chefs move simultaneously and have independent walk/run controls', as
   await expect(page.locator('#p2-state')).toHaveText('idle');
 });
 
+test('both canonical character families animate every walk/run direction and return to idle', async ({
+  page,
+}) => {
+  await openKitchen(page);
+  const directions = [
+    { name: 'up', keys: ['KeyW', 'ArrowUp'] },
+    { name: 'down', keys: ['KeyS', 'ArrowDown'] },
+    { name: 'left', keys: ['KeyA', 'ArrowLeft'] },
+    { name: 'right', keys: ['KeyD', 'ArrowRight'] },
+    { name: 'up-left', keys: ['KeyW', 'KeyA', 'ArrowUp', 'ArrowLeft'] },
+    { name: 'down-right', keys: ['KeyS', 'KeyD', 'ArrowDown', 'ArrowRight'] },
+    { name: 'up-right', keys: ['KeyW', 'KeyD', 'ArrowUp', 'ArrowRight'] },
+    { name: 'down-left', keys: ['KeyS', 'KeyA', 'ArrowDown', 'ArrowLeft'] },
+  ];
+  for (const motion of ['walk', 'run'] as const) {
+    for (const direction of directions) {
+      await page.getByRole('button', { name: 'Restart kitchen' }).click();
+      const keys = [
+        ...direction.keys,
+        ...(motion === 'run' ? ['ShiftLeft', 'ShiftRight'] : []),
+      ];
+      for (const key of keys) await page.keyboard.down(key);
+      await expect
+        .poll(async () =>
+          (await snapshot(page)).players.map((player) => player.animation.clip),
+        )
+        .toEqual([
+          `${motion}-${direction.name}`,
+          `${motion}-${direction.name}`,
+        ]);
+      await expect
+        .poll(async () =>
+          (await snapshot(page)).players.every(
+            (player) => player.animation.frame > 0,
+          ),
+        )
+        .toBe(true);
+      for (const key of keys) await page.keyboard.up(key);
+      await expect(page.locator('#p1-state')).toHaveText('idle');
+      await expect(page.locator('#p2-state')).toHaveText('idle');
+    }
+  }
+});
+
 test('walls stop a running chef and restart clears held input and animation', async ({
   page,
 }) => {
@@ -269,6 +314,11 @@ test('the production build works mounted under a GitHub Pages project path', asy
   });
   await page.goto('/CookUp/?debug');
   await expect(page.locator('canvas')).toHaveAttribute('data-status', 'ready');
+  const favicon = await page.locator('link[rel="icon"]').getAttribute('href');
+  if (!favicon) throw new Error('Expected canonical favicon URL');
+  expect(new URL(favicon, page.url()).pathname).toBe(
+    '/CookUp/assets/Spirits/characters/male-cook/idle/male-cook-idle-01.png',
+  );
   await page.keyboard.down('ArrowRight');
   await expect(page.locator('#p2-state')).toHaveText('walk');
   await page.keyboard.up('ArrowRight');
@@ -285,12 +335,10 @@ test('loads only the tall structural kit and renders matching walls, corners, do
     }
   });
   await openKitchen(page);
-  for (const asset of Object.values(structuralWalls)) {
-    expect(imageRequests).toContain(`/${asset.path}`);
-  }
+  for (const path of assetPaths) expect(imageRequests).toContain(`/${path}`);
   for (const path of imageRequests) {
     expect(path).not.toMatch(
-      /Wall Kit (?:v2|Final)|Empty Kitchen\/(?:Walls|Windows|Openings|Transitions)\//,
+      /\/legacy\/|\/Environment\/|Wall Kit|Empty Kitchen/,
     );
   }
   const { world } = await snapshot(page);

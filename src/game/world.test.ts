@@ -75,7 +75,7 @@ describe('tall structural wall layout', () => {
       ...world.objects,
     ]) {
       expect(sprite.asset).not.toMatch(
-        /Wall Kit (?:v2|Final)|Empty Kitchen\/(?:Walls|Windows|Openings|Transitions)\//,
+        /\/legacy\/|\/Environment\/|Wall Kit|Empty Kitchen/,
       );
     }
   });
