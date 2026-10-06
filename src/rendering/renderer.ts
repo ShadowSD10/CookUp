@@ -1,6 +1,6 @@
 import { Assets } from '../assets/loader';
 import { getClip } from '../assets/manifest';
-import { PLAYER_CONFIG } from '../core/config';
+import { PLAYER_COLORS, PLAYER_CONFIG } from '../core/config';
 import type { Player } from '../entities/player';
 import type { GameState } from '../game/state';
 import type { WorldSprite } from '../game/world';
@@ -96,7 +96,7 @@ export class Renderer {
       );
     const width = clip.frameWidth * player.renderScale;
     const height = clip.frameHeight * player.renderScale;
-    const color = player.id === 1 ? '#598966' : '#c4855c';
+    const color = PLAYER_COLORS[player.id];
     ctx.fillStyle = '#23363325';
     ctx.beginPath();
     ctx.ellipse(player.x, player.y - 3, 26, 9, 0, 0, Math.PI * 2);

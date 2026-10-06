@@ -114,6 +114,7 @@ describe('playable kitchen', () => {
 
   it('uses the south collider even with expanded movement bounds and changed visual dimensions', () => {
     const state = createGame();
+    for (const player of state.players) player.x = 640;
     state.world.bounds.height += 500;
     state.world.foregroundBounds.height = 100;
     for (const wall of state.world.foreground) {

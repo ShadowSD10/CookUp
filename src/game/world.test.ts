@@ -40,7 +40,9 @@ describe('tall structural wall layout', () => {
     expect(
       world.floors.filter((sprite) => sprite.asset !== environment.mat),
     ).toHaveLength(90);
-    expect(world.objects).toHaveLength(2);
+    expect(
+      world.objects.filter((object) => object.asset === environment.plant),
+    ).toHaveLength(2);
   });
 
   it('uses only tall structural assets with native dimensions and exact grid anchors', () => {

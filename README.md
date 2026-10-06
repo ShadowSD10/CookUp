@@ -1,7 +1,7 @@
 # CookUp
 
-A static, local two-player cooking-game prototype. Milestone 0 is an empty
-modular kitchen with two playable chefs. There is no backend, database,
+A static, local two-player cooking-game prototype. The modular kitchen now has
+collision-aware equipment and two playable chefs. There is no backend, database,
 authentication, online multiplayer, or cooking gameplay.
 
 ## Run locally
@@ -57,11 +57,11 @@ prioritize the canvas; the fullscreen/restart toolbar remains available.
 - `src/systems`: keyboard abstraction, movement, swept axis-aligned collision,
   and configurable frame animation.
 - `src/rendering`: fitted shared camera, high-DPI Canvas 2D drawing, and Y-sorted
-  chefs/decorations. Gameplay never draws to Canvas.
+  chefs/decorations/equipment. Gameplay never draws to Canvas.
 - `tests`: Playwright browser checks against the production build.
 
 The room is composed of individual floor, structural wall, window, door, mat,
-clock, and plant images. Walls and plant bases block movement. The door is
+clock, plant, and equipment images. Walls, plant bases, and equipment bodies block movement. The door is
 closed; there is no exit interaction. Chefs can pass through each other.
 Both players stay visible using a camera that fits the whole room.
 
@@ -198,18 +198,60 @@ folder names for reference. The two deprecated male PNGs and SVG live under
 `characters/male-cook/legacy/samples/`. None are loaded by the runtime.
 Do not remove these reference assets without a separate reviewed cleanup.
 
-Future equipment destinations contain only `.gitkeep` files so Git retains the
-requested folders. **Kitchen Equipment Kit v1 has not been added.** No ingredients,
-food, or unrelated future categories have been created.
+**Kitchen Equipment Kit v1** adds 14 supplied, byte-preserved PNGs in the furniture,
+stations, and appliances categories above. There are now **378 PNGs** in the
+repository and **318 registered runtime images**. All 14 equipment images load;
+10 are placed. The inside/outside counter corners, single counter, and bare stove
+remain available without being forced into the layout. The cookware stove is a
+complete visual state, not an overlay. No ingredients or food categories were added.
 
 The loader continues to encode URLs and honor Vite's deployment base. Tests check
 exact filesystem case, unique active paths, all original artwork hashes, clip
 timings, the supplied tall metadata, browser rendering, and GitHub Pages URLs.
-When intentionally adding or changing artwork in a future milestone, update the
-documented inventory baseline test as part of that reviewed change.
+The original 364-PNG/SVG integrity baseline is retained separately from the new
+14-image equipment integrity baseline.
 
 Controls, speed, scale, and collision sizes are centralized in
 `src/core/config.ts`. Map layout and object colliders live in `src/game/world.ts`.
+
+### Equipment layout
+
+The approved 10 × 9 architecture is unchanged. Equipment uses native scale **1.0**,
+top-left grid anchors, and the existing object/chef depth sort. Chef artwork,
+animation and scale **0.5** are unchanged. P1's ring, label and control badge are
+blue; P2's are orange, from one shared palette.
+
+| Object            | Grid anchor (column,row) | PNG/world size | Local body collider (x,y,w,h) |
+| ----------------- | ------------------------ | -------------- | ----------------------------- |
+| Fridge            | (1,3)                    | 128 × 256      | (24,200,80,40)                |
+| Cookware stove    | (2,3)                    | 128 × 128      | (12,72,104,40)                |
+| Sink              | (3,3)                    | 128 × 128      | (12,72,104,40)                |
+| Counter left end  | (1,5)                    | 128 × 128      | (12,72,116,40)                |
+| Counter straight  | (2,5)                    | 128 × 128      | (0,72,128,40)                 |
+| Counter right end | (3,5)                    | 128 × 128      | (0,72,116,40)                 |
+| Island            | (6,3)                    | 256 × 128      | (12,72,232,40)                |
+| Serving counter   | (8,3)                    | 128 × 128      | (12,72,104,40)                |
+| Table             | (6,5)                    | 256 × 128      | (24,72,212,44)                |
+| Prep counter      | (8,5)                    | 128 × 128      | (12,72,104,40)                |
+
+Multiply anchors by 128 for world positions. Colliders describe floor-level bodies,
+not full image canvases or raised worktops. Sorting uses each body's front edge;
+chefs can stand behind a worktop or render in front of it. Connected counter
+colliders meet exactly at their internal seams. Fridge artwork occupies two rows,
+with its floor footprint in the lower row.
+
+West storage/cooking and its connected workspace face east island/serving and
+table/prep zones. The central **256-unit** lane at x=512..768 stays free of equipment,
+including the north doorway approach. The main cross-aisle is **216 units** deep
+east of the fridge; the south aisle is **196 units** deep. These are primary routes,
+not the narrow incidental gaps next to walls. Both original spawns remain clear.
+The default door remains closed; its existing open/connected-room configuration
+still permits passage. Windows, clock, floor, plants, mat, walls, south clipping,
+physical room bounds, camera and fullscreen behavior are unchanged.
+
+Equipment is visual and collision-aware only. No station interaction, cooking,
+washing, serving, inventory, recipes, timers, scoring, or equipment state machines
+have been implemented.
 
 ## Verify
 

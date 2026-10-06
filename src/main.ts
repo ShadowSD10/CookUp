@@ -1,5 +1,6 @@
 import './style.css';
 import { Assets } from './assets/loader';
+import { PLAYER_COLORS } from './core/config';
 import { GameLoop } from './core/loop';
 import { setupFullscreen } from './core/fullscreen';
 import { createGame, updateGame } from './game/state';
@@ -27,6 +28,12 @@ const playerLabels = [
   element('p1-state', HTMLSpanElement),
   element('p2-state', HTMLSpanElement),
 ];
+for (const id of [1, 2] as const) {
+  document.documentElement.style.setProperty(
+    `--player-${id}`,
+    PLAYER_COLORS[id],
+  );
+}
 let dispose: (() => void) | undefined;
 
 function showError(error: unknown): void {

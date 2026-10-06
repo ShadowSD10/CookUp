@@ -1,6 +1,8 @@
 import {
   environment,
+  equipment,
   structuralWalls,
+  type SpriteAsset,
   type StructuralAsset,
 } from '../assets/manifest';
 import type { Rect } from '../systems/collision';
@@ -211,5 +213,74 @@ export function createWorld(
       collider: { x: plant.x + 46, y: plant.y + 77, width: 36, height: 28 },
     });
   }
+  const placeEquipment = (
+    asset: SpriteAsset,
+    column: number,
+    row: number,
+    body: Rect = { x: 12, y: 72, width: 104, height: 40 },
+  ): void => {
+    const x = column * TILE_SIZE;
+    const y = row * TILE_SIZE;
+    world.objects.push({
+      asset: asset.path,
+      x,
+      y,
+      width: asset.width,
+      height: asset.height,
+      footprint: {
+        x,
+        y: y + asset.height - TILE_SIZE,
+        width: asset.width,
+        height: TILE_SIZE,
+      },
+      collider: {
+        x: x + body.x,
+        y: y + body.y,
+        width: body.width,
+        height: body.height,
+      },
+      depth: y + body.y + body.height,
+    });
+  };
+  placeEquipment(equipment.fridge, 1, 3, {
+    x: 24,
+    y: 200,
+    width: 80,
+    height: 40,
+  });
+  placeEquipment(equipment.stoveCookware, 2, 3);
+  placeEquipment(equipment.sink, 3, 3);
+  placeEquipment(equipment.counterEndLeft, 1, 5, {
+    x: 12,
+    y: 72,
+    width: 116,
+    height: 40,
+  });
+  placeEquipment(equipment.counterStraight, 2, 5, {
+    x: 0,
+    y: 72,
+    width: 128,
+    height: 40,
+  });
+  placeEquipment(equipment.counterEndRight, 3, 5, {
+    x: 0,
+    y: 72,
+    width: 116,
+    height: 40,
+  });
+  placeEquipment(equipment.island, 6, 3, {
+    x: 12,
+    y: 72,
+    width: 232,
+    height: 40,
+  });
+  placeEquipment(equipment.serving, 8, 3);
+  placeEquipment(equipment.table, 6, 5, {
+    x: 24,
+    y: 72,
+    width: 212,
+    height: 44,
+  });
+  placeEquipment(equipment.prep, 8, 5);
   return world;
 }

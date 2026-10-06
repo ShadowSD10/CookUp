@@ -28,3 +28,5 @@ export const PLAYER_CONFIG = {
 } as const;
 
 export const MAX_DELTA_SECONDS = 0.05;
+
+export const PLAYER_COLORS = { 1: '#3b82f6', 2: '#e88935' } as const;

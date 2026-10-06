@@ -7,8 +7,9 @@ import {
   getClip,
   structuralWalls,
   environment,
+  equipment,
 } from '../src/assets/manifest';
-import { PLAYER_CONFIG } from '../src/core/config';
+import { PLAYER_COLORS, PLAYER_CONFIG } from '../src/core/config';
 
 declare global {
   interface Window {
@@ -81,6 +82,152 @@ async function expectSpritePixels(
   }
 }
 
+for (const viewport of [
+  { width: 1440, height: 1000 },
+  { width: 390, height: 844 },
+]) {
+  test(`renders all ten equipment objects at native proportions at ${viewport.width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await openKitchen(page);
+    const paths = new Set(Object.values(equipment).map((asset) => asset.path));
+    const objects = (await snapshot(page)).world.objects.filter((object) =>
+      paths.has(object.asset),
+    );
+    expect(objects).toHaveLength(10);
+    await expectSpritePixels(
+      page,
+      objects.map((object) => {
+        const sourceX = object.width / 2;
+        const sourceY = object.asset === equipment.fridge.path ? 128 : 60;
+        return {
+          url: assetUrl(object.asset, '/'),
+          x: object.x + sourceX,
+          y: object.y + sourceY,
+          sourceX,
+          sourceY,
+        };
+      }),
+    );
+  });
+}
+
+test('uses blue P1 and orange P2 indicators in the canvas and control badges', async ({
+  page,
+}) => {
+  await openKitchen(page);
+  const players = (await snapshot(page)).players;
+  const samples = await page
+    .locator('canvas')
+    .evaluate((canvas: HTMLCanvasElement, players) => {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Missing canvas context');
+      const transform = ctx.getTransform();
+      return players.map((player) => {
+        const colorsAt = (worldX: number, worldY: number): number[][] => {
+          const x = Math.floor(transform.e + worldX * transform.a);
+          const y = Math.floor(transform.f + worldY * transform.d);
+          const pixels = ctx.getImageData(x - 2, y - 2, 5, 5).data;
+          return Array.from({ length: 25 }, (_, index) =>
+            Array.from(pixels.slice(index * 4, index * 4 + 4)),
+          );
+        };
+        return {
+          label: colorsAt(player.x - 10, player.y - 132),
+          ring: colorsAt(player.x + 31, player.y - 3),
+        };
+      });
+    }, players);
+  for (const [index, id] of ([1, 2] as const).entries()) {
+    const hex = PLAYER_COLORS[id];
+    const rgb = [1, 3, 5].map((offset) =>
+      Number.parseInt(hex.slice(offset, offset + 2), 16),
+    );
+    expect(samples[index]?.label).toContainEqual([...rgb, 255]);
+    expect(samples[index]?.ring).toContainEqual([...rgb, 255]);
+    await expect(page.locator('.player-badge').nth(index)).toHaveCSS(
+      'color',
+      `rgb(${rgb.join(', ')})`,
+    );
+  }
+});
+
+test('counter body blocks movement while chefs render behind and in front of its worktop', async ({
+  page,
+}) => {
+  await openKitchen(page);
+  const walkUntil = async (
+    key: string,
+    axis: 'x' | 'y',
+    target: number,
+    increasing: boolean,
+  ): Promise<void> => {
+    await page.keyboard.down(key);
+    await page.waitForFunction(
+      ({ axis, target, increasing }) => {
+        const value = window.__cookup.snapshot().players[0][axis];
+        return increasing ? value >= target : value <= target;
+      },
+      { axis, target, increasing },
+    );
+    await page.keyboard.up(key);
+  };
+  await walkUntil('KeyA', 'x', 320, false);
+  await page.keyboard.down('KeyS');
+  await expect.poll(async () => (await snapshot(page)).players[0].y).toBe(700);
+  await page.keyboard.up('KeyS');
+  await expect(page.locator('#p1-state')).toHaveText('idle');
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  const behind = await snapshot(page);
+  let player = behind.players[0];
+  const counter = behind.world.objects.find(
+    (object) =>
+      [
+        equipment.counterEndLeft.path,
+        equipment.counterStraight.path,
+        equipment.counterEndRight.path,
+      ].includes(object.asset) &&
+      player.x >= object.x &&
+      player.x < object.x + object.width,
+  );
+  if (!counter)
+    throw new Error('Chef must be behind the connected counter run');
+  await expectSpritePixels(page, [
+    {
+      url: assetUrl(counter.asset, '/'),
+      x: player.x,
+      y: 680,
+      sourceX: player.x - counter.x,
+      sourceY: 40,
+    },
+  ]);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await walkUntil('KeyD', 'x', 576, true);
+  await walkUntil('KeyS', 'y', 816, true);
+  await walkUntil('KeyA', 'x', 320, false);
+  await page.keyboard.down('KeyW');
+  await expect.poll(async () => (await snapshot(page)).players[0].y).toBe(764);
+  await page.keyboard.up('KeyW');
+  await expect(page.locator('#p1-state')).toHaveText('idle');
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  player = (await snapshot(page)).players[0];
+  const clip = getClip(player.character, player.animation.clip);
+  const frame = clip.frames[player.animation.frame];
+  if (!frame) throw new Error('Missing chef frame');
+  await expectSpritePixels(page, [
+    {
+      url: assetUrl(frame, '/'),
+      x: player.x,
+      y:
+        player.y - 128 * PLAYER_CONFIG.anchorY + 60 * PLAYER_CONFIG.renderScale,
+      sourceX: 128,
+      sourceY: 60,
+      scale: PLAYER_CONFIG.renderScale,
+    },
+  ]);
+});
+
 test('loads original assets, renders the canvas, and has no browser errors', async ({
   page,
 }) => {
@@ -123,6 +270,11 @@ test('both chefs move simultaneously and have independent walk/run controls', as
   page,
 }) => {
   await openKitchen(page);
+  await page.keyboard.down('ArrowLeft');
+  await page.waitForFunction(
+    () => window.__cookup.snapshot().players[1].x <= 704,
+  );
+  await page.keyboard.up('ArrowLeft');
   const before = await snapshot(page);
   await page.keyboard.down('KeyD');
   await page.keyboard.down('ArrowUp');
@@ -530,6 +682,17 @@ test('walking and running chefs enter the south wall region, stop, and render be
   page,
 }) => {
   await openKitchen(page);
+  await page.keyboard.down('KeyD');
+  await page.keyboard.down('ArrowLeft');
+  await expect
+    .poll(async () =>
+      (await snapshot(page)).players.every(
+        (player) => player.x > 544 && player.x < 736,
+      ),
+    )
+    .toBe(true);
+  await page.keyboard.up('KeyD');
+  await page.keyboard.up('ArrowLeft');
   await page.keyboard.down('KeyS');
   await page.keyboard.down('ArrowDown');
   await page.keyboard.down('ShiftRight');

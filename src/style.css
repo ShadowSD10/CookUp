@@ -205,14 +205,14 @@ canvas {
   height: 30px;
   flex-shrink: 0;
   border-radius: 10px;
-  background: #e1ecdf;
-  color: #42674d;
+  background: #deebff;
+  color: var(--player-1);
   font-size: 12px;
   font-weight: 800;
 }
 .player-two .player-badge {
   background: #f2e4d8;
-  color: #9c6647;
+  color: var(--player-2);
 }
 h3 {
   font-size: 13px;

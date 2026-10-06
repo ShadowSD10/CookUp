@@ -38,10 +38,13 @@ function characterClips(
 const environmentRoot = 'assets/Spirits/environment';
 const environmentPath = (path: string): string =>
   `${environmentRoot}/${path}.png`;
-export interface StructuralAsset {
+export interface SpriteAsset {
   path: string;
   width: number;
   height: number;
+}
+
+export interface StructuralAsset extends SpriteAsset {
   connectors: string;
 }
 
@@ -215,6 +218,56 @@ export const environment = {
   clock: environmentPath('decorations/cookup-wall-clock-128'),
 };
 
+const equipmentAsset = (
+  path: string,
+  width = 128,
+  height = 128,
+): SpriteAsset => ({
+  path: environmentPath(path),
+  width,
+  height,
+});
+
+export const equipment = {
+  counterStraight: equipmentAsset(
+    'furniture/counters/cookup-equipment-counter-straight-128x128',
+  ),
+  counterEndLeft: equipmentAsset(
+    'furniture/counters/cookup-equipment-counter-end-left-128x128',
+  ),
+  counterEndRight: equipmentAsset(
+    'furniture/counters/cookup-equipment-counter-end-right-128x128',
+  ),
+  counterCornerInside: equipmentAsset(
+    'furniture/counters/cookup-equipment-counter-corner-inside-128x128',
+  ),
+  counterCornerOutside: equipmentAsset(
+    'furniture/counters/cookup-equipment-counter-corner-outside-128x128',
+  ),
+  counterSingle: equipmentAsset(
+    'furniture/counters/cookup-equipment-counter-single-128x128',
+  ),
+  island: equipmentAsset(
+    'furniture/islands/cookup-equipment-kitchen-island-256x128',
+    256,
+  ),
+  table: equipmentAsset('furniture/tables/cookup-equipment-table-256x128', 256),
+  prep: equipmentAsset('stations/prep/cookup-equipment-prep-counter-128x128'),
+  stove: equipmentAsset('stations/cooking/cookup-equipment-stove-128x128'),
+  stoveCookware: equipmentAsset(
+    'stations/cooking/cookup-equipment-stove-cookware-128x128',
+  ),
+  sink: equipmentAsset('stations/sink/cookup-equipment-sink-128x128'),
+  serving: equipmentAsset(
+    'stations/serving/cookup-equipment-serving-counter-128x128',
+  ),
+  fridge: equipmentAsset(
+    'appliances/refrigerator/cookup-equipment-fridge-128x256',
+    128,
+    256,
+  ),
+};
+
 export const characters: Record<Character, Record<string, AnimationClip>> = {
   maleCook: characterClips('male-cook', 'male-cook'),
   femaleCook: characterClips('female-cook', 'female-cook'),
@@ -236,6 +289,7 @@ export const assetPaths = [
   ...new Set([
     ...Object.values(environment),
     ...Object.values(structuralWalls).map((asset) => asset.path),
+    ...Object.values(equipment).map((asset) => asset.path),
     ...Object.values(characters).flatMap((clips) =>
       Object.values(clips).flatMap((clip) => clip.frames),
     ),

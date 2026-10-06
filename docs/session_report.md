@@ -1,5 +1,159 @@
 # CookUp — Session Report
 
+## October 5, 2026 — Kitchen Equipment Kit v1 integration
+
+**Outcome:** Furnished the approved 10 × 9 kitchen with ten collision-aware
+objects from the fourteen supplied equipment PNGs. All fourteen are registered
+and loaded. Inspected the playable production build on desktop and mobile,
+including both chefs behind/in front of furniture and at the south boundary.
+No cooking, interaction, inventory, recipes, washing, serving, timers, scoring,
+orders, or equipment state machines were implemented.
+
+### Inspection and asset registration
+
+Worked from the current repository on `main`, after canonical migration commit
+`5c35150`. The fourteen equipment PNGs were already present as untracked user
+assets; nothing was downloaded, generated, rotated, recolored, resized, or
+re-exported. Inspected every image, its PNG header, opaque bounds, and SHA-256.
+There was no equipment-specific metadata file; the existing JSON/README belong
+to the Tall structural kit.
+
+Read the existing world, manifest, renderer, player state, foot-collision system,
+camera/viewport tests, and south-wall behavior before selecting the layout.
+The user approved west storage/cooking with a connected counter run, east
+island/prep/serving/table, a clear central entrance lane, and leaving unnecessary
+counter variants registered but unplaced.
+
+All paths are under **`public/assets/Spirits/environment/`**:
+
+| Directory                  | Supplied equipment                                                   | Native dimensions  |
+| -------------------------- | -------------------------------------------------------------------- | ------------------ |
+| `furniture/counters/`      | Straight, left end, right end, inside corner, outside corner, single | Six 128 × 128 PNGs |
+| `furniture/islands/`       | Kitchen island                                                       | 256 × 128          |
+| `furniture/tables/`        | Table                                                                | 256 × 128          |
+| `stations/prep/`           | Prep counter                                                         | 128 × 128          |
+| `stations/cooking/`        | Stove and cookware stove                                             | Two 128 × 128 PNGs |
+| `stations/sink/`           | Sink                                                                 | 128 × 128          |
+| `stations/serving/`        | Serving counter                                                      | 128 × 128          |
+| `appliances/refrigerator/` | Fridge                                                               | 128 × 256          |
+
+The centralized manifest contains all exact original filenames and native
+dimensions; no asset paths were scattered into world/render code. Shared
+`SpriteAsset` dimensions support both structural and equipment registration.
+The existing loader now loads **318 runtime images**, up from 304. Repository
+inventory is **378 PNGs plus the original reference SVG**. The original
+364-PNG/SVG byte-integrity baseline remains intact, with a separate fourteen-PNG
+integrity assertion. The sorted filename/SHA-256 equipment fingerprint is
+`c86bf49c375554131a74a93d7bd8efc1501d0c15eb101bd0306e5d997f0f3fee`.
+
+### Final placement and circulation
+
+Every top-left anchor is a multiple of 128, and every equipment image renders
+at **1.0** with its native width/height. Chef scale remains **0.5**.
+
+| Object            | Grid anchor | World origin |
+| ----------------- | ----------- | ------------ |
+| Fridge            | (1,3)       | (128,384)    |
+| Cookware stove    | (2,3)       | (256,384)    |
+| Sink              | (3,3)       | (384,384)    |
+| Counter left end  | (1,5)       | (128,640)    |
+| Counter straight  | (2,5)       | (256,640)    |
+| Counter right end | (3,5)       | (384,640)    |
+| Island            | (6,3)       | (768,384)    |
+| Serving counter   | (8,3)       | (1024,384)   |
+| Table             | (6,5)       | (768,640)    |
+| Prep counter      | (8,5)       | (1024,640)   |
+
+The three authored counter pieces connect without rotation or visual/body gaps.
+The cookware stove is one complete object, not a stove with a second image on
+top. Bare stove, inside/outside counter corners, and single counter remain
+available alternatives, not additional clutter.
+
+The entrance lane at x=512..768 is **256 units wide** and contains no equipment.
+The main cross-aisle east of the fridge is **216 units deep**, and the south
+aisle is **196 units deep**. These primary circulation routes exceed one grid
+cell and accommodate both 34-unit-wide foot bodies with substantial clearance;
+incidental wall-side gaps are not required through-routes. Original spawns are
+unchanged and clear of every collider.
+
+North windows, doorway/frame/door, enlarged clock, all Tall walls, floor tiles,
+mat, plants, room bounds and south cutaway remain unchanged. No old structural
+artwork was reactivated. The existing default door is still closed: this task
+does not add exit interaction. Its existing open/connected-room configuration
+still provides a real, equipment-free passage, covered by traversal tests.
+
+### Physical bodies, depth, and indicators
+
+Equipment is appended to the existing `WorldObject` collection, so the existing
+movement system automatically includes its explicit rectangular body colliders.
+No separate collision or rendering system was added.
+
+Ordinary stations use a local body at (12,72), size 104 × 40. Counter body
+rectangles join exactly at internal seams. The island uses 232 × 40, the table
+212 × 44, and the fridge uses a lower 80 × 40 base at local (24,200), rather
+than its full 128 × 256 canvas. Exact collider coordinates are documented in
+the [README equipment table](../README.md#equipment-layout).
+
+Depth is the front edge of each body, not the image top. Existing Y sorting
+places chefs behind raised surfaces when approaching from the north and in
+front when standing south of the object. Floor, structures, depth-sorted
+objects/chefs, and clipped south foreground retain their existing order.
+Feet can cross transparent lower canvas margins without an invisible PNG-sized
+obstacle. The south physical boundary remains y=952, limiting chef centers to
+y=940, and its foreground clip remains y=896..1046.
+
+Centralized indicator colors are **P1 blue `#3b82f6`** and **P2 orange `#e88935`**.
+Canvas rings, labels, and control badges share the palette. No character image,
+animation, input, movement speed, camera, or fullscreen code changed. The page
+title/toolbar no longer incorrectly call the furnished room an empty kitchen.
+
+### Validation and actual browser inspection
+
+Final validation completed successfully:
+
+- `npm run typecheck` — passed.
+- `npm run lint` — passed.
+- `npm run format:check` — passed.
+- `npm run test` — **78 passed**, five files.
+- `npm run build` — passed.
+- `npm run test:e2e` — **22 passed** against the production build.
+
+Added native-size/path/hash coverage, exact placement and seam assertions,
+all-four-face equipment collision checks for both chefs, transparent-margin
+traversal, diagonal wall sliding, spawn clearance, measurable aisle widths,
+collision-aware reachability of every equipment front, and furnished open-door
+traversal. Browser tests compare source PNG pixels at desktop/mobile sizes,
+verify behind/front counter ordering and exact collision stops, and check actual
+blue/orange ring/label pixels and badge colors.
+
+Existing empty-room movement tests now navigate the central lane before testing
+the south wall or uninterrupted northward movement. Their physical boundary,
+occlusion, movement/animation, and fullscreen assertions were retained. During
+test development, corrected explicit URL bases for Node-side browser helpers
+and sampled the actual counter module under the chef rather than assuming
+keyboard release landed at an exact x coordinate.
+
+Opened the running production preview at **1440 × 1000** and **390 × 844**.
+Viewed fresh screenshots, not just test outcomes. Confirmed coherent work zones,
+connected counters, undistorted equipment, unobstructed north architecture,
+readable blue/orange indicators, unchanged floor area, and no horizontal mobile
+overflow. All fourteen equipment requests were observed without asset 404s or
+browser console errors.
+
+Moved both chefs around the counter/table, inspected them stopped behind the
+worktops at y=700 and in front at y=764/768, then walked/ran them to y=940 and
+visually confirmed the existing south-wall partial occlusion. Also moved both
+through the central lane to the north boundary at y=260 and inspected the
+unobstructed doorway approach. Automated resize/fullscreen cases passed.
+Saved desktop, mobile, behind, front, south, and entrance screenshots as session
+artifacts; no diagnostic files or screenshots were added to application assets.
+
+**Remaining limitations:** equipment is environmental only; the perimeter door
+remains non-interactive and closed by default. Mobile presentation still fits the
+whole room, making sprites smaller; touch controls remain out of scope. No
+blocking integration issue was observed. No commit or push was performed for
+this milestone.
+
 ## October 5, 2026 — Canonical asset-folder migration
 
 **Outcome:** Safely reorganized the existing assets under the unchanged canonical

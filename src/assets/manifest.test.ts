@@ -6,6 +6,7 @@ import {
   assetPaths,
   assetUrl,
   characters,
+  equipment,
   structuralWalls,
   getClip,
 } from './manifest';
@@ -15,11 +16,16 @@ describe('original asset manifest', () => {
   const root = 'assets/Spirits/environment/structure';
   const finalAssets = Object.values(structuralWalls);
   const finalPaths = new Set(finalAssets.map((asset) => asset.path));
+  const equipmentPaths = new Set(
+    Object.values(equipment).map((asset) => asset.path),
+  );
   it('resolves every registered PNG and verifies actual dimensions', () => {
     for (const path of assetPaths) {
       const png = readFileSync(resolve('public', path));
       expect(png.subarray(1, 4).toString(), path).toBe('PNG');
-      const structural = finalAssets.find((asset) => asset.path === path);
+      const structural = [...finalAssets, ...Object.values(equipment)].find(
+        (asset) => asset.path === path,
+      );
       const size = path.includes('/environment/') ? 128 : 256;
       expect(png.readUInt32BE(16), path).toBe(structural?.width ?? size);
       expect(png.readUInt32BE(20), path).toBe(structural?.height ?? size);
@@ -167,11 +173,11 @@ describe('original asset manifest', () => {
     })
       .filter((file): file is string => typeof file === 'string')
       .map((file) => `assets/Spirits/${file.replaceAll('\\', '/')}`);
-    expect(assetPaths).toHaveLength(304);
+    expect(assetPaths).toHaveLength(318);
     for (const path of assetPaths) {
       expect(allFiles).toContain(path);
       expect(path).toMatch(
-        /^assets\/Spirits\/(?:characters\/(?:male|female)-cook\/(?:idle|walk|run)|environment\/(?:structure|decorations))\//,
+        /^assets\/Spirits\/(?:characters\/(?:male|female)-cook\/(?:idle|walk|run)|environment\/(?:structure|decorations|furniture|stations|appliances))\//,
       );
       expect(
         allFiles.filter((file) => basename(file) === basename(path)),
@@ -187,7 +193,9 @@ describe('original asset manifest', () => {
     const root = resolve('public/assets/Spirits');
     const files = readdirSync(root, { recursive: true }).filter(
       (file): file is string =>
-        typeof file === 'string' && /\.(png|svg)$/.test(file),
+        typeof file === 'string' &&
+        /\.(png|svg)$/.test(file) &&
+        !equipmentPaths.has(`assets/Spirits/${file.replaceAll('\\', '/')}`),
     );
     expect(files.filter((file) => file.endsWith('.png'))).toHaveLength(364);
     expect(files.filter((file) => file.endsWith('.svg'))).toHaveLength(1);
@@ -203,6 +211,43 @@ describe('original asset manifest', () => {
     expect(createHash('sha256').update(records.join('\n')).digest('hex')).toBe(
       '1311dc790b8365f7b11ea758a53740bccce31d026a696c4fe30e8bdff3b5bc20',
     );
+  });
+  it('registers all 14 equipment PNGs and preserves their original bytes and native dimensions', () => {
+    const root = resolve('public/assets/Spirits/environment');
+    const files = readdirSync(root, { recursive: true }).filter(
+      (file): file is string =>
+        typeof file === 'string' &&
+        basename(file).startsWith('cookup-equipment-') &&
+        file.endsWith('.png'),
+    );
+    expect(files).toHaveLength(14);
+    expect(equipmentPaths).toEqual(
+      new Set(
+        files.map(
+          (file) => `assets/Spirits/environment/${file.replaceAll('\\', '/')}`,
+        ),
+      ),
+    );
+    const records = files
+      .map(
+        (file) =>
+          `${basename(file)}:${createHash('sha256')
+            .update(readFileSync(resolve(root, file)))
+            .digest('hex')}`,
+      )
+      .sort();
+    expect(createHash('sha256').update(records.join('\n')).digest('hex')).toBe(
+      'c86bf49c375554131a74a93d7bd8efc1501d0c15eb101bd0306e5d997f0f3fee',
+    );
+    expect([equipment.fridge.width, equipment.fridge.height]).toEqual([
+      128, 256,
+    ]);
+    for (const asset of [equipment.island, equipment.table])
+      expect([asset.width, asset.height]).toEqual([256, 128]);
+    for (const [id, asset] of Object.entries(equipment)) {
+      if (['fridge', 'island', 'table'].includes(id)) continue;
+      expect([asset.width, asset.height]).toEqual([128, 128]);
+    }
   });
   it('groups all directional frames by motion without changing clip identity or timing', () => {
     for (const [character, folder] of [
